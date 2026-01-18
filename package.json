@@ -1,0 +1,13 @@
+{
+  "name": "clarvis",
+  "version": "0.2.0",
+  "description": "Web UI for Claude Code sessions via Claudekeeper",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
