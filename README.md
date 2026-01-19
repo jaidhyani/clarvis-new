@@ -2,16 +2,6 @@
 
 Web UI for Claude Code sessions via Claudekeeper.
 
-## Overview
-
-Clarvis is a lightweight web interface that connects to a Claudekeeper server to display and interact with Claude Code sessions. It provides:
-
-- Session list grouped by working directory
-- Attention indicators for sessions needing input
-- Real-time message streaming
-- Permission request handling
-- Interactive messaging
-
 ## Setup
 
 1. Start Claudekeeper first:
@@ -21,22 +11,28 @@ Clarvis is a lightweight web interface that connects to a Claudekeeper server to
 
 2. Start Clarvis:
    ```bash
-   npm start
+   ALLOWED_ROOTS="/home/user/projects,/var/www" node server.js
    ```
 
-3. Open http://localhost:3000 in your browser
-
-4. Enter your Claudekeeper URL and token to connect
+3. Open http://localhost:3000 and enter your Claudekeeper token
 
 ## Configuration
 
-Clarvis stores connection settings in localStorage. On first visit, enter:
-- **URL**: Claudekeeper server URL (default: http://localhost:3100)
-- **Token**: Your Claudekeeper authentication token
+Environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 3000 | Server port |
+| `CLAUDEKEEPER_URL` | http://localhost:3100 | Backend server |
+| `ALLOWED_ROOTS` | (none) | Comma-separated paths for file browser |
 
 ## Features
 
-- **Session filtering**: Show all sessions or only those needing attention
-- **Real-time updates**: WebSocket connection for live session updates
-- **Attention queue**: Visual indicators and cards for permission requests
-- **Interactive mode**: Send messages to active sessions
+- **Session management**: List, create, rename, delete sessions
+- **File browser**: Visual directory picker (server-controlled allowed paths)
+- **Slash commands**: VS Code-style autocomplete (`/help`, `/model`, etc.)
+- **Transcript view**: Toggle to show Chain of Thought and tool calls
+- **User interactions**: Questions and confirmations displayed inline
+- **Mobile responsive**: Full functionality on mobile devices
+- **Real-time updates**: WebSocket for live session state
+- **Attention queue**: Permission requests and questions with Allow/Deny
