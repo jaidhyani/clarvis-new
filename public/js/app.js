@@ -23,6 +23,30 @@ function renderMarkdown(text) {
   return marked.parse(text)
 }
 
+function extractTextContent(content) {
+  if (!content) return ''
+
+  // String content
+  if (typeof content === 'string') {
+    return content
+  }
+
+  // Array of content blocks
+  if (Array.isArray(content)) {
+    const textParts = content
+      .filter(b => b.type === 'text' && b.text)
+      .map(b => b.text)
+    return textParts.join('\n')
+  }
+
+  // Object with text property
+  if (content.text) {
+    return content.text
+  }
+
+  return ''
+}
+
 function groupByWorkdir(sessions, attention) {
   const attentionBySession = {}
   for (const a of attention) {
@@ -46,12 +70,17 @@ function groupByWorkdir(sessions, attention) {
   }
 
   for (const g of Object.values(groups)) {
-    g.sessions.sort((a, b) => new Date(b.lastActivity) - new Date(a.lastActivity))
+    // Sort by modified time (Claude sessions use 'modified' instead of 'lastActivity')
+    g.sessions.sort((a, b) => {
+      const aTime = new Date(b.modified || b.lastActivity || 0).getTime()
+      const bTime = new Date(a.modified || a.lastActivity || 0).getTime()
+      return aTime - bTime
+    })
   }
 
   return Object.values(groups).sort((a, b) => {
-    const aTime = Math.max(...a.sessions.map(s => new Date(s.lastActivity).getTime()))
-    const bTime = Math.max(...b.sessions.map(s => new Date(s.lastActivity).getTime()))
+    const aTime = Math.max(...a.sessions.map(s => new Date(s.modified || s.lastActivity || 0).getTime()))
+    const bTime = Math.max(...b.sessions.map(s => new Date(s.modified || s.lastActivity || 0).getTime()))
     return bTime - aTime
   })
 }
@@ -85,7 +114,15 @@ function App() {
   const [showToken, setShowToken] = useState(false)
   const [sessions, setSessions] = useState([])
   const [attention, setAttention] = useState([])
-  const [activeSessionId, setActiveSessionId] = useState(null)
+  const [activeSessionId, setActiveSessionId] = useState(() => {
+    // Read from URL hash first, then localStorage
+    const hash = window.location.hash
+    if (hash.startsWith('#session=')) {
+      return hash.slice(9)
+    }
+    return localStorage.getItem('clarvis_activeSession') || null
+  })
+  const [awaitingResponse, setAwaitingResponse] = useState(false)
   const [messages, setMessages] = useState({})
   const [showNewSession, setShowNewSession] = useState(false)
   const [newWorkdir, setNewWorkdir] = useState('')
@@ -111,6 +148,50 @@ function App() {
   useEffect(() => {
     localStorage.setItem('clarvis_token', token)
   }, [token])
+
+  useEffect(() => {
+    if (activeSessionId) {
+      localStorage.setItem('clarvis_activeSession', activeSessionId)
+      // Update URL without triggering navigation
+      const newHash = `#session=${activeSessionId}`
+      if (window.location.hash !== newHash) {
+        window.history.replaceState(null, '', newHash)
+      }
+    } else {
+      localStorage.removeItem('clarvis_activeSession')
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname)
+      }
+    }
+  }, [activeSessionId])
+
+  // Handle browser back/forward and direct URL access
+  useEffect(() => {
+    const handleHashChange = async () => {
+      const hash = window.location.hash
+      if (hash.startsWith('#session=')) {
+        const sessionId = hash.slice(9)
+        if (sessionId !== activeSessionId) {
+          setActiveSessionId(sessionId)
+          // Load messages if not already loaded
+          if (!messages[sessionId] && clientRef.current) {
+            try {
+              const session = await clientRef.current.getSession(sessionId)
+              if (session.messages) {
+                setMessages(prev => ({ ...prev, [sessionId]: session.messages }))
+              }
+            } catch (e) {
+              console.error('Failed to load session history:', e)
+            }
+          }
+        }
+      } else if (!hash && activeSessionId) {
+        setActiveSessionId(null)
+      }
+    }
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [activeSessionId, messages])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -146,6 +227,28 @@ function App() {
         ])
         setSessions(sessionsData)
         setAttention(attentionData)
+
+        // Get session ID from URL hash or localStorage
+        const hash = window.location.hash
+        let sessionIdToLoad = null
+        if (hash.startsWith('#session=')) {
+          sessionIdToLoad = hash.slice(9)
+        } else {
+          sessionIdToLoad = localStorage.getItem('clarvis_activeSession')
+        }
+
+        // Load the session if it exists
+        if (sessionIdToLoad && sessionsData.some(s => s.id === sessionIdToLoad)) {
+          setActiveSessionId(sessionIdToLoad)
+          try {
+            const session = await client.getSession(sessionIdToLoad)
+            if (session.messages) {
+              setMessages(prev => ({ ...prev, [sessionIdToLoad]: session.messages }))
+            }
+          } catch (e) {
+            console.error('Failed to restore session history:', e)
+          }
+        }
       },
       onDisconnect: () => setConnected(false),
       onError: () => setLoginError('Connection failed - check token'),
@@ -158,12 +261,34 @@ function App() {
       onSessionEnded: (sessionId) => {
         setSessions(prev => prev.filter(s => s.id !== sessionId))
         setAttention(prev => prev.filter(a => a.sessionId !== sessionId))
+        // Clear awaiting response if this session ended
+        if (sessionId === localStorage.getItem('clarvis_activeSession')) {
+          setAwaitingResponse(false)
+        }
       },
       onMessage: (sessionId, message) => {
-        setMessages(prev => ({
-          ...prev,
-          [sessionId]: [...(prev[sessionId] || []), message]
-        }))
+        setMessages(prev => {
+          const existing = prev[sessionId] || []
+          // Deduplicate: if this is a user message and we have an optimistic message
+          // with matching content, replace the optimistic one
+          if (message.role === 'user') {
+            const msgContent = extractTextContent(message.content)
+            const optimisticIdx = existing.findIndex(m =>
+              m.optimistic && m.role === 'user' && extractTextContent(m.content) === msgContent
+            )
+            if (optimisticIdx !== -1) {
+              // Replace optimistic with real message
+              const updated = [...existing]
+              updated[optimisticIdx] = message
+              return { ...prev, [sessionId]: updated }
+            }
+          }
+          return { ...prev, [sessionId]: [...existing, message] }
+        })
+        // Clear awaiting response when we get a message for the active session
+        if (sessionId === localStorage.getItem('clarvis_activeSession')) {
+          setAwaitingResponse(false)
+        }
       },
       onAttention: (a) => {
         setAttention(prev => [...prev.filter(x => x.id !== a.id), a])
@@ -289,10 +414,12 @@ function App() {
     const text = inputText
     setInputText('')
     setShowSlashMenu(false)
+    // Add optimistic user message (marked with optimistic flag for deduplication)
     setMessages(prev => ({
       ...prev,
-      [activeSessionId]: [...(prev[activeSessionId] || []), { role: 'user', content: text }]
+      [activeSessionId]: [...(prev[activeSessionId] || []), { role: 'user', content: text, optimistic: true }]
     }))
+    setAwaitingResponse(true)
     await clientRef.current.sendMessage(activeSessionId, text)
   }
 
@@ -356,6 +483,7 @@ function App() {
   const selectSession = async (sessionId) => {
     setActiveSessionId(sessionId)
     setSidebarOpen(false)
+    setAwaitingResponse(false)
 
     if (!messages[sessionId]) {
       try {
@@ -453,7 +581,20 @@ function App() {
               ${activeSession.process && html`
                 <button class="btn-secondary" onClick=${() => clientRef.current.interruptSession(activeSessionId)}>Stop</button>
               `}
-              <button class="btn-danger" onClick=${() => clientRef.current.deleteSession(activeSessionId)}>Delete</button>
+              <button class="btn-danger" onClick=${async () => {
+                try {
+                  await clientRef.current.deleteSession(activeSessionId)
+                  setSessions(prev => prev.filter(s => s.id !== activeSessionId))
+                  setMessages(prev => {
+                    const updated = { ...prev }
+                    delete updated[activeSessionId]
+                    return updated
+                  })
+                  setActiveSessionId(null)
+                } catch (e) {
+                  console.error('Failed to delete session:', e)
+                }
+              }}>Delete</button>
             </div>
           ` : html`
             <div class="session-info">
@@ -474,6 +615,14 @@ function App() {
                 onResolve=${(behavior, message) => resolveAttention(a.id, behavior, message)}
               />
             `)}
+            ${awaitingResponse && html`
+              <div class="message assistant loading">
+                <div class="message-role">Claude</div>
+                <div class="loading-indicator">
+                  <span></span><span></span><span></span>
+                </div>
+              </div>
+            `}
             <div ref=${messagesEndRef}></div>
           </div>
 
@@ -605,11 +754,24 @@ function Message({ message, showTranscript }) {
   if (!message) return null
 
   const isInteraction = message.type === 'interaction' || message.type === 'user_interaction'
-  const isToolUse = message.type === 'tool_use' || message.tool
   const isThinking = message.type === 'thinking' || message.thinking
 
-  if (!showTranscript && (isToolUse || isThinking)) {
-    return null
+  // Check for tool_use blocks in content array
+  const hasToolUse = Array.isArray(message.content) &&
+    message.content.some(b => b.type === 'tool_use')
+
+  if (!showTranscript && (hasToolUse || isThinking)) {
+    // Still show text content if present
+    const textContent = extractTextContent(message.content)
+    if (!textContent) return null
+    const role = message.role || 'assistant'
+    const roleLabel = role === 'user' ? 'You' : 'Claude'
+    return html`
+      <div class="message ${role}">
+        <div class="message-role">${roleLabel}</div>
+        <div class="message-content" dangerouslySetInnerHTML=${{ __html: renderMarkdown(textContent) }}></div>
+      </div>
+    `
   }
 
   if (isInteraction) {
@@ -635,35 +797,28 @@ function Message({ message, showTranscript }) {
     `
   }
 
-  if (isToolUse && showTranscript) {
-    const toolName = message.tool || message.toolName || 'Tool'
-    const input = message.input || message.toolInput || {}
-    const result = message.result || message.toolResult
-    return html`
-      <div class="message tool-use">
-        <div class="tool-header">
-          <span class="tool-label">Tool Use</span>
-          <span class="tool-name">${toolName}</span>
-        </div>
-        <pre class="tool-input">${JSON.stringify(input, null, 2)}</pre>
-        ${result && html`
-          <div class="tool-result">
-            <div class="tool-result-label">Result</div>
-            <pre>${typeof result === 'string' ? result : JSON.stringify(result, null, 2)}</pre>
-          </div>
-        `}
-      </div>
-    `
-  }
+  // Messages from Claude Code sessions have { id, role, content, timestamp }
+  const role = message.role || 'assistant'
+  const roleLabel = role === 'user' ? 'You' : 'Claude'
 
-  const content = message.content || message.text || message.result
+  // Extract displayable content
+  const content = extractTextContent(message.content)
   if (!content) return null
-
-  const role = message.role || (message.type === 'assistant' ? 'assistant' : 'user')
 
   return html`
     <div class="message ${role}">
-      <div class="message-content" dangerouslySetInnerHTML=${{ __html: renderMarkdown(String(content)) }}></div>
+      <div class="message-role">${roleLabel}</div>
+      <div class="message-content" dangerouslySetInnerHTML=${{ __html: renderMarkdown(content) }}></div>
+      ${showTranscript && hasToolUse && html`
+        <div class="tool-uses">
+          ${message.content.filter(b => b.type === 'tool_use').map((tool, i) => html`
+            <div class="tool-use-inline" key=${i}>
+              <span class="tool-name">${tool.name}</span>
+              <pre class="tool-input">${JSON.stringify(tool.input, null, 2)}</pre>
+            </div>
+          `)}
+        </div>
+      `}
     </div>
   `
 }
@@ -672,7 +827,9 @@ function AttentionCard({ attention, onResolve }) {
   const [message, setMessage] = useState('')
 
   if (attention.type === 'permission') {
-    const { toolName, input } = attention.payload || {}
+    // New format uses toolName/toolInput directly, not nested in payload
+    const toolName = attention.toolName || attention.payload?.toolName || 'Unknown Tool'
+    const input = attention.toolInput || attention.payload?.input || {}
     return html`
       <div class="attention-card permission">
         <div class="attention-header">
@@ -688,22 +845,29 @@ function AttentionCard({ attention, onResolve }) {
     `
   }
 
-  if (attention.type === 'question') {
+  if (attention.type === 'error') {
     return html`
-      <div class="attention-card question">
+      <div class="attention-card error">
         <div class="attention-header">
-          <span class="attention-type">Question</span>
+          <span class="attention-type">Error</span>
         </div>
-        <p class="attention-summary">${attention.summary}</p>
-        <textarea
-          value=${message}
-          onInput=${e => setMessage(e.target.value)}
-          placeholder="Type your answer..."
-        />
+        <p class="attention-message">${attention.message}</p>
         <div class="attention-actions">
-          <button class="btn-primary" onClick=${() => onResolve('allow', message)} disabled=${!message.trim()}>
-            Submit Answer
-          </button>
+          <button class="btn-secondary" onClick=${() => onResolve('allow')}>Dismiss</button>
+        </div>
+      </div>
+    `
+  }
+
+  if (attention.type === 'completion') {
+    return html`
+      <div class="attention-card completion">
+        <div class="attention-header">
+          <span class="attention-type">Completed</span>
+        </div>
+        <p class="attention-message">${attention.message}</p>
+        <div class="attention-actions">
+          <button class="btn-primary" onClick=${() => onResolve('allow')}>OK</button>
         </div>
       </div>
     `

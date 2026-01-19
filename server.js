@@ -2,6 +2,7 @@ import { createServer, request as httpRequest } from 'http'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
 import { join, extname, resolve, normalize } from 'path'
 import { fileURLToPath } from 'url'
+import { homedir } from 'os'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const PUBLIC_DIR = join(__dirname, 'public')
@@ -14,6 +15,11 @@ const ALLOWED_ROOTS = (process.env.ALLOWED_ROOTS || '')
   .map(p => p.trim())
   .filter(Boolean)
   .map(p => resolve(p))
+
+// Default to home directory if no roots configured
+if (ALLOWED_ROOTS.length === 0) {
+  ALLOWED_ROOTS.push(resolve(homedir()))
+}
 
 const MIME_TYPES = {
   '.html': 'text/html',

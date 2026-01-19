@@ -496,6 +496,64 @@ body {
   align-self: flex-start;
 }
 
+.message-role {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.message.user .message-role {
+  color: var(--accent);
+}
+
+.message.assistant .message-role {
+  color: var(--text-muted);
+}
+
+/* Loading indicator */
+.message.loading {
+  min-height: 60px;
+}
+
+.loading-indicator {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.loading-indicator span {
+  width: 8px;
+  height: 8px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  animation: loadingPulse 1.4s ease-in-out infinite;
+}
+
+.loading-indicator span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.loading-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes loadingPulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .message.interaction {
   background: var(--bg-tertiary);
   border: 1px solid var(--accent);
