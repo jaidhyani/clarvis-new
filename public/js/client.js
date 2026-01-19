@@ -1,16 +1,14 @@
-// Claudekeeper API client
+// Claudekeeper API client (via Clarvis proxy)
 
 export class ClaudekeeperClient {
-  constructor(baseUrl, token) {
-    this.baseUrl = baseUrl.replace(/\/$/, '')
+  constructor(token) {
     this.token = token
     this.ws = null
     this.handlers = {}
   }
 
   async fetch(path, options = {}) {
-    const url = `${this.baseUrl}${path}`
-    const res = await fetch(url, {
+    const res = await fetch(`/api${path}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -70,10 +68,27 @@ export class ClaudekeeperClient {
     return this.fetch('/health')
   }
 
+  async browse(path = '') {
+    const url = path ? `/browse?path=${encodeURIComponent(path)}` : '/browse'
+    return this.fetch(url)
+  }
+
+  async renameSession(id, name) {
+    return this.fetch(`/sessions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name })
+    })
+  }
+
+  async getSlashCommands() {
+    return this.fetch('/slash-commands')
+  }
+
   subscribe(handlers) {
     this.handlers = handlers
 
-    const wsUrl = this.baseUrl.replace(/^http/, 'ws') + `?token=${this.token}`
+    const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${wsProtocol}//${location.host}/ws?token=${this.token}`
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {
