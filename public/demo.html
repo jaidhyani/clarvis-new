@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clarvis Demo</title>
+  <link rel="stylesheet" href="/css/main.css">
+  <style>
+    .demo-app {
+      display: flex;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-app">
+    <div class="sidebar open">
+      <div class="sidebar-header">
+        <h2>Sessions</h2>
+        <button class="close-sidebar">×</button>
+      </div>
+      <div class="sidebar-controls">
+        <select>
+          <option value="all">All Sessions</option>
+          <option value="attention">Needs Attention</option>
+        </select>
+        <button class="btn-primary btn-sm">+ New</button>
+      </div>
+      <div class="session-list">
+        <div class="session-group">
+          <div class="group-header">clarvis-new</div>
+          <div class="session-item active">
+            <span class="session-indicator running"></span>
+            <span class="session-name">Feature Implementation</span>
+            <span class="attention-badge">1</span>
+          </div>
+          <div class="session-item">
+            <span class="session-indicator idle"></span>
+            <span class="session-name">Bug Fix Session</span>
+          </div>
+        </div>
+        <div class="session-group">
+          <div class="group-header">my-project</div>
+          <div class="session-item needs-attention">
+            <span class="session-indicator running"></span>
+            <span class="session-name">API Development</span>
+            <span class="attention-badge">2</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="main-header">
+        <button class="hamburger">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="session-info">
+          <h3>Feature Implementation</h3>
+          <span class="session-workdir">/home/jai/Desktop/clarvis-new</span>
+        </div>
+        <div class="header-actions">
+          <button class="btn-icon active" title="Toggle detailed view (Ctrl+O)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14,2 14,8 20,8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10,9 9,9 8,9"/>
+            </svg>
+          </button>
+          <button class="btn-secondary">Stop</button>
+          <button class="btn-danger">Delete</button>
+        </div>
+      </div>
+
+      <div class="messages">
+        <div class="message user">
+          <div class="message-content">
+            <p>Help me implement a new feature for the file browser</p>
+          </div>
+        </div>
+
+        <div class="message assistant">
+          <div class="message-content">
+            <p>I'll help you implement the file browser feature. Let me first explore the codebase to understand the current structure.</p>
+          </div>
+        </div>
+
+        <div class="message thinking">
+          <div class="thinking-label">Thinking</div>
+          <div class="message-content">
+            <p>I need to understand the server architecture first. The file browser will need a server-side endpoint that can list directories safely within allowed roots. Then I'll create the UI component...</p>
+          </div>
+        </div>
+
+        <div class="message tool-use">
+          <div class="tool-header">
+            <span class="tool-label">Tool Use</span>
+            <span class="tool-name">Read</span>
+          </div>
+          <pre class="tool-input">{
+  "file_path": "/home/jai/Desktop/clarvis-new/server.js"
+}</pre>
+          <div class="tool-result">
+            <div class="tool-result-label">Result</div>
+            <pre>import { createServer } from 'http'
+import { readFileSync, existsSync } from 'fs'
+...</pre>
+          </div>
+        </div>
+
+        <div class="message interaction">
+          <div class="interaction-label">User Interaction</div>
+          <div class="interaction-question">Which design style would you prefer for the file browser?</div>
+          <div class="interaction-answer">
+            <strong>Answer:</strong> Modern minimal with icons
+          </div>
+        </div>
+
+        <div class="message assistant">
+          <div class="message-content">
+            <p>I've implemented the file browser with the following features:</p>
+            <ul>
+              <li>Server-side directory listing within allowed roots</li>
+              <li>Tree navigation with breadcrumb</li>
+              <li>Click to navigate, double-click to select</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="attention-card permission">
+          <div class="attention-header">
+            <span class="attention-type">Permission Required</span>
+            <span class="attention-tool">Write</span>
+          </div>
+          <pre class="attention-input">{
+  "file_path": "/home/jai/Desktop/clarvis-new/public/js/app.js",
+  "content": "// New file browser component..."
+}</pre>
+          <div class="attention-actions">
+            <button class="btn-danger">Deny</button>
+            <button class="btn-success">Allow</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-container">
+        <div class="slash-menu">
+          <div class="slash-item selected">
+            <span class="slash-name">/help</span>
+            <span class="slash-desc">Show available commands</span>
+          </div>
+          <div class="slash-item">
+            <span class="slash-name">/clear</span>
+            <span class="slash-desc">Clear conversation history</span>
+          </div>
+          <div class="slash-item">
+            <span class="slash-name">/compact</span>
+            <span class="slash-desc">Summarize and compact conversation</span>
+          </div>
+          <div class="slash-item">
+            <span class="slash-name">/model</span>
+            <span class="slash-desc">Switch AI model</span>
+          </div>
+        </div>
+        <div class="input-area">
+          <button class="slash-trigger" title="Slash commands">/</button>
+          <textarea placeholder="Type a message or / for commands..." rows="1">/hel</textarea>
+          <button class="btn-send">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22,2 15,22 11,13 2,9"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

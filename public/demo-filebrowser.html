@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clarvis File Browser Demo</title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <div class="app" style="filter: blur(2px);">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>Sessions</h2>
+      </div>
+      <div class="sidebar-controls">
+        <select>
+          <option value="all">All Sessions</option>
+        </select>
+        <button class="btn-primary btn-sm">+ New</button>
+      </div>
+      <div class="session-list">
+        <div class="session-group">
+          <div class="group-header">my-project</div>
+          <div class="session-item">
+            <span class="session-indicator idle"></span>
+            <span class="session-name">Bug Fix Session</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="main-header">
+        <div class="session-info">
+          <h3>Clarvis</h3>
+        </div>
+      </div>
+      <div class="no-session">
+        <div class="no-session-content">
+          <h2>Welcome to Clarvis</h2>
+          <p>Select a session from the sidebar or create a new one to get started.</p>
+          <button class="btn-primary">Create New Session</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay">
+    <div class="modal file-browser-modal">
+      <div class="modal-header">
+        <h3>Select Directory</h3>
+        <button class="modal-close">×</button>
+      </div>
+      <div class="browser-path">
+        <button class="btn-icon">←</button>
+        <span>/home/jai/Desktop</span>
+      </div>
+      <div class="browser-list">
+        <div class="browser-item">
+          <span class="browser-icon">📁</span>
+          <span class="browser-name">clarvis-new</span>
+        </div>
+        <div class="browser-item">
+          <span class="browser-icon">📁</span>
+          <span class="browser-name">my-project</span>
+        </div>
+        <div class="browser-item">
+          <span class="browser-icon">📁</span>
+          <span class="browser-name">website</span>
+        </div>
+        <div class="browser-item">
+          <span class="browser-icon">📁</span>
+          <span class="browser-name">api-server</span>
+        </div>
+        <div class="browser-item">
+          <span class="browser-icon">📁</span>
+          <span class="browser-name">docs</span>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary">Cancel</button>
+        <button class="btn-primary">Select This Directory</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

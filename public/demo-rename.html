@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clarvis Session Rename Demo</title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <div class="app">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>Sessions</h2>
+      </div>
+      <div class="sidebar-controls">
+        <select>
+          <option value="all">All Sessions</option>
+          <option value="attention">Needs Attention</option>
+        </select>
+        <button class="btn-primary btn-sm">+ New</button>
+      </div>
+      <div class="session-list">
+        <div class="session-group">
+          <div class="group-header">clarvis-new</div>
+          <div class="session-item active">
+            <span class="session-indicator running"></span>
+            <input class="session-name-input" value="V2 Feature Work" autofocus style="flex: 1;">
+            <span class="attention-badge">1</span>
+          </div>
+          <div class="session-item">
+            <span class="session-indicator idle"></span>
+            <span class="session-name">Bug Fix Session</span>
+          </div>
+        </div>
+        <div class="session-group">
+          <div class="group-header">my-project</div>
+          <div class="session-item">
+            <span class="session-indicator idle"></span>
+            <span class="session-name">API Development</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="main-header">
+        <button class="hamburger" style="display: none;">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="session-info">
+          <h3>V2 Feature Work</h3>
+          <span class="session-workdir">/home/jai/Desktop/clarvis-new</span>
+        </div>
+        <div class="header-actions">
+          <button class="btn-icon" title="Toggle detailed view">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14,2 14,8 20,8"/>
+            </svg>
+          </button>
+          <button class="btn-secondary">Stop</button>
+          <button class="btn-danger">Delete</button>
+        </div>
+      </div>
+
+      <div class="messages">
+        <div class="message assistant">
+          <div class="message-content">
+            <p>You can rename sessions anytime by double-clicking on the session name in the sidebar. The name is currently being edited - see the highlighted input field.</p>
+            <p>Press <strong>Enter</strong> to save or <strong>Escape</strong> to cancel.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-container">
+        <div class="input-area">
+          <button class="slash-trigger" title="Slash commands">/</button>
+          <textarea placeholder="Type a message or / for commands..." rows="1"></textarea>
+          <button class="btn-send" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22,2 15,22 11,13 2,9"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
