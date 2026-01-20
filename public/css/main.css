@@ -1263,3 +1263,266 @@ input:focus:not(:focus-visible),
 textarea:focus:not(:focus-visible) {
   outline: none;
 }
+
+/* ============================================
+   Sidebar V2 Features
+   ============================================ */
+
+/* Sidebar title row */
+.sidebar-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.collapse-all-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.collapse-all-btn:hover {
+  color: var(--text-primary);
+}
+
+/* Session group styles (V2 collapsible) */
+.session-group.collapsed .group-sessions {
+  display: none;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-radius: 0.25rem;
+}
+
+.group-header:hover {
+  background: var(--bg-secondary);
+}
+
+.collapse-icon {
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+  width: 1rem;
+}
+
+.workdir-name {
+  flex: 1;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-count {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.config-btn {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.group-header:hover .config-btn {
+  opacity: 1;
+}
+
+/* Session item updates */
+.session-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.edit-btn {
+  opacity: 0;
+  transition: opacity 0.15s;
+  font-size: 0.75rem;
+}
+
+.session-item:hover .edit-btn,
+.header-session-name:hover .edit-btn {
+  opacity: 1;
+}
+
+.session-time {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.session-name-input,
+.header-name-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent);
+  border-radius: 0.25rem;
+  color: var(--text-primary);
+  padding: 0.25rem 0.5rem;
+  font-size: inherit;
+  width: 100%;
+}
+
+/* Session overflow */
+.session-overflow {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 0.5rem 2rem;
+}
+
+.session-overflow button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0;
+}
+
+.session-overflow button:hover {
+  text-decoration: underline;
+}
+
+/* ============================================
+   Resolved Interactions
+   ============================================ */
+
+.interaction-resolved {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--bg-secondary);
+  border-radius: 0.5rem;
+  margin: 0.5rem 0;
+  font-size: 0.875rem;
+}
+
+.interaction-resolved.allowed {
+  border-left: 3px solid var(--success);
+}
+
+.interaction-resolved.denied {
+  border-left: 3px solid var(--danger);
+}
+
+.interaction-icon {
+  font-size: 1rem;
+}
+
+.interaction-resolved.allowed .interaction-icon {
+  color: var(--success);
+}
+
+.interaction-resolved.denied .interaction-icon {
+  color: var(--danger);
+}
+
+.interaction-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.interaction-action {
+  color: var(--text-primary);
+}
+
+.interaction-message {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.interaction-time {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+/* ============================================
+   Modal Variants & Config Display
+   ============================================ */
+
+/* Wide modal variant */
+.modal.modal-wide {
+  max-width: 600px;
+  width: 90vw;
+}
+
+/* Config display */
+.config-display {
+  background: var(--bg-tertiary);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  overflow: auto;
+  max-height: 300px;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+/* Header session name */
+.header-session-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.header-session-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.header-name-input {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+/* Form group for modal */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.form-group select {
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  color: var(--text-primary);
+}
+
+.input-with-button {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.input-with-button input {
+  flex: 1;
+}
+
+.input-with-button button {
+  padding: 0.5rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
