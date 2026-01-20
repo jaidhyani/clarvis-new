@@ -1354,13 +1354,21 @@ textarea:focus:not(:focus-visible) {
   font-size: 0.75rem;
 }
 
-.config-btn {
+.config-btn,
+.new-session-btn {
   opacity: 0;
   transition: opacity 0.15s;
 }
 
-.group-header:hover .config-btn {
+.group-header:hover .config-btn,
+.group-header:hover .new-session-btn {
   opacity: 1;
+}
+
+.new-session-btn {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 /* Session item updates */

@@ -892,6 +892,15 @@ function App() {
                   <span class="workdir-name" title=${group.workdir}>${getWorkdirName(group.workdir)}</span>
                   <span class="session-count">(${group.sessions.length})</span>
                   <button
+                    class="btn-icon new-session-btn"
+                    onClick=${(e) => {
+                      e.stopPropagation()
+                      setNewSession(s => ({ ...s, workdir: group.workdir }))
+                      openModal('newSession')
+                    }}
+                    title="New session in this directory"
+                  >+</button>
+                  <button
                     class="btn-icon config-btn"
                     onClick=${(e) => {
                       e.stopPropagation()
