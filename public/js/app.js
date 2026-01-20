@@ -185,6 +185,9 @@ function App() {
     'workdirConfig': ['fileBrowser']
   }
 
+  // Permission mode change state
+  const [pendingPermissionChange, setPendingPermissionChange] = useState(null) // { sessionId, mode }
+
   const openModal = useCallback((modalId, data = null, isChild = false) => {
     setModalStack(prev => {
       // If this is a child modal of the current modal, push onto stack
@@ -720,6 +723,33 @@ function App() {
 
   const toggleTranscript = () => setShowTranscript(s => !s)
 
+  // Handle permission mode changes with confirmation for dangerous mode
+  const handlePermissionModeChange = async (sessionId, newMode) => {
+    if (newMode === 'dangerously-skip-permissions') {
+      // Show confirmation dialog
+      setPendingPermissionChange({ sessionId, mode: newMode })
+    } else {
+      // Apply directly
+      await applyPermissionModeChange(sessionId, newMode)
+    }
+  }
+
+  const applyPermissionModeChange = async (sessionId, newMode) => {
+    try {
+      await clientRef.current.updateSession(sessionId, { permissionMode: newMode })
+      setSessions(prev => prev.map(s =>
+        s.id === sessionId ? { ...s, permissionMode: newMode } : s
+      ))
+    } catch (e) {
+      console.error('Failed to update permission mode:', e)
+    }
+    setPendingPermissionChange(null)
+  }
+
+  const cancelPermissionChange = () => {
+    setPendingPermissionChange(null)
+  }
+
   // Helper to merge messages and interactions chronologically
   const getMergedTranscript = (sessionMessages, sessionInteractions) => {
     const items = [
@@ -891,7 +921,19 @@ function App() {
                   >✎</button>
                 </h3>
               `}
-              <span class="session-workdir">${activeSession.workdir}</span>
+              <div class="session-meta">
+                <span class="session-workdir">${activeSession.workdir}</span>
+                <select
+                  class="permission-select"
+                  value=${activeSession.permissionMode || 'default'}
+                  onChange=${e => handlePermissionModeChange(activeSession.id, e.target.value)}
+                  title="Permission mode"
+                >
+                  ${PERMISSION_MODES.map(mode => html`
+                    <option key=${mode.value} value=${mode.value}>${mode.label}</option>
+                  `)}
+                </select>
+              </div>
             </div>
             <div class="header-actions">
               <button
@@ -1154,6 +1196,35 @@ function App() {
               </div>
             `
           })}
+        </div>
+      `}
+
+      ${pendingPermissionChange && html`
+        <div class="modal-overlay" onClick=${cancelPermissionChange}>
+          <div class="modal modal-confirm" onClick=${e => e.stopPropagation()}>
+            <div class="modal-header">
+              <h3>Confirm Permission Change</h3>
+              <button class="modal-close" onClick=${cancelPermissionChange}>×</button>
+            </div>
+            <div class="modal-body">
+              <p class="confirm-warning">
+                Are you sure you want to enable <strong>Skip Permissions</strong> mode?
+              </p>
+              <p class="confirm-details">
+                This will skip all permission checks for this session. Claude will be able to
+                execute any action without asking for confirmation.
+              </p>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-secondary" onClick=${cancelPermissionChange}>Cancel</button>
+              <button
+                class="btn-danger"
+                onClick=${() => applyPermissionModeChange(pendingPermissionChange.sessionId, pendingPermissionChange.mode)}
+              >
+                Enable Skip Permissions
+              </button>
+            </div>
+          </div>
         </div>
       `}
     </div>

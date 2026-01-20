@@ -1555,3 +1555,52 @@ textarea:focus:not(:focus-visible) {
   border-radius: 0.25rem;
   cursor: pointer;
 }
+
+/* ============================================
+   Session Meta & Permission Dropdown
+   ============================================ */
+
+.session-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.permission-select {
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.permission-select:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.permission-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Confirmation modal */
+.modal-confirm {
+  max-width: 400px;
+}
+
+.confirm-warning {
+  margin-bottom: 0.75rem;
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.confirm-details {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
