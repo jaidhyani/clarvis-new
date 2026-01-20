@@ -344,8 +344,8 @@ function App() {
         const sessionId = hash.slice(9)
         if (sessionId !== activeSessionId) {
           setActiveSessionId(sessionId)
-          // Load messages if not already loaded
-          if (!messages[sessionId] && clientRef.current) {
+          // Load messages if not already loaded (skip for pending sessions - they don't exist on backend yet)
+          if (!messages[sessionId] && clientRef.current && !sessionId.startsWith('pending_')) {
             try {
               const session = await clientRef.current.getSession(sessionId)
               if (session.messages) {
@@ -669,6 +669,7 @@ function App() {
 
       // Create a temporary local session placeholder (shows immediately in UI)
       const tempId = `pending_${Date.now()}`
+      const now = new Date().toISOString()
       const tempSession = {
         id: tempId,
         workdir: newSession.workdir,
@@ -676,7 +677,9 @@ function App() {
         status: 'idle',
         config: config || {},
         messages: [],
-        createdAt: new Date().toISOString(),
+        created: now,
+        modified: now,
+        permissionMode: newSession.permissionMode || 'default',
         _pendingFor: newSession.workdir // Used to match with real session when it arrives
       }
 
