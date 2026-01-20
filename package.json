@@ -1,13 +1,36 @@
 {
   "name": "clarvis",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Web UI for Claude Code sessions via Claudekeeper",
+  "private": true,
   "type": "module",
-  "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "server": "tsx src/server/index.ts",
+    "server:dev": "tsx watch src/server/index.ts",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.9.4",
+    "@testing-library/preact": "^3.2.4",
+    "@types/node": "^22.15.21",
+    "jsdom": "^27.4.0",
+    "tsx": "^4.19.4",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.4",
+    "vitest": "^3.1.4"
+  },
+  "dependencies": {
+    "fuse.js": "^7.1.0",
+    "highlight.js": "^11.11.1",
+    "marked": "^15.0.8",
+    "preact": "^10.26.6"
   }
 }
