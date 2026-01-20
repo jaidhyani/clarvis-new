@@ -392,16 +392,23 @@ function App() {
     }
   }, [activeModal, modalData])
 
-  // Close modal on Escape key (closes current modal in stack)
+  // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Escape closes modals
       if (e.key === 'Escape' && modalStack.length > 0) {
         closeModal()
+        return
+      }
+      // Ctrl/Cmd+O toggles detailed view (like Claude Code)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'o' && activeSessionId) {
+        e.preventDefault()
+        setShowTranscript(s => !s)
       }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [modalStack, closeModal])
+  }, [modalStack, closeModal, activeSessionId])
 
   const connect = useCallback(() => {
     if (!token) return

@@ -603,6 +603,35 @@ body {
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 }
 
+/* Inline tool uses in detailed view */
+.tool-uses {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tool-use-inline {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.tool-use-inline .tool-name {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+}
+
+.tool-use-inline .tool-input {
+  margin: 0;
+  font-size: 0.75rem;
+  max-height: 150px;
+  overflow: auto;
+}
+
 .tool-header {
   display: flex;
   align-items: center;
