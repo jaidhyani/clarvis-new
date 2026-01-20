@@ -2,6 +2,7 @@ import { h, render } from './lib/preact.mjs'
 import { useState, useEffect, useCallback, useRef, useMemo } from './lib/hooks.mjs'
 import htm from './lib/htm.mjs'
 import { marked } from './lib/marked.esm.js'
+import Fuse from './lib/fuse.mjs'
 import { ClaudekeeperClient } from './client.js'
 
 const html = htm.bind(h)
@@ -221,6 +222,9 @@ function App() {
     permissionMode: 'default'
   })
   const [filter, setFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(0)
+  const searchInputRef = useRef(null)
   const [inputText, setInputText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showTranscript, setShowTranscript] = useState(false)
@@ -401,6 +405,12 @@ function App() {
       // Escape closes modals
       if (e.key === 'Escape' && modalStack.length > 0) {
         closeModal()
+        return
+      }
+      // Ctrl/Cmd+K focuses search box
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
         return
       }
       // Ctrl/Cmd+O toggles detailed view (like Claude Code)
@@ -673,9 +683,74 @@ function App() {
   const sessionAttention = attention.filter(a => a.sessionId === activeSessionId)
 
   const groups = groupByWorkdir(sessions, attention)
+
+  // Create Fuse instance for fuzzy search
+  const fuse = useMemo(() => {
+    const searchableItems = sessions.map(s => ({
+      ...s,
+      workdirName: getWorkdirName(s.workdir),
+      displayName: s.name || s.id.slice(0, 12)
+    }))
+    return new Fuse(searchableItems, {
+      keys: ['displayName', 'name', 'workdirName', 'workdir'],
+      threshold: 0.4,
+      includeScore: true,
+      ignoreLocation: true
+    })
+  }, [sessions])
+
+  // Filter groups by search query
+  const searchFilteredGroups = useMemo(() => {
+    if (!searchQuery.trim()) return groups
+
+    const results = fuse.search(searchQuery)
+    const matchedSessionIds = new Set(results.map(r => r.item.id))
+    const matchedWorkdirs = new Set()
+
+    // Check if any workdir names match the search
+    const workdirFuse = new Fuse(groups.map(g => ({ workdir: g.workdir, name: g.name })), {
+      keys: ['name', 'workdir'],
+      threshold: 0.4,
+      includeScore: true
+    })
+    const workdirResults = workdirFuse.search(searchQuery)
+    workdirResults.forEach(r => matchedWorkdirs.add(r.item.workdir))
+
+    return groups.map(g => {
+      // If workdir matches, include all sessions
+      if (matchedWorkdirs.has(g.workdir)) {
+        return g
+      }
+      // Otherwise only include matched sessions
+      return {
+        ...g,
+        sessions: g.sessions.filter(s => matchedSessionIds.has(s.id))
+      }
+    }).filter(g => g.sessions.length > 0)
+  }, [groups, searchQuery, fuse])
+
+  // Apply attention filter on top of search filter
   const filteredGroups = filter === 'attention'
-    ? groups.map(g => ({ ...g, sessions: g.sessions.filter(s => s.attention.length > 0) })).filter(g => g.sessions.length > 0)
-    : groups
+    ? searchFilteredGroups.map(g => ({ ...g, sessions: g.sessions.filter(s => s.attention.length > 0) })).filter(g => g.sessions.length > 0)
+    : searchFilteredGroups
+
+  // Auto-expand workdirs that have search matches
+  const searchExpandedWorkdirs = useMemo(() => {
+    if (!searchQuery.trim()) return {}
+    const expanded = {}
+    filteredGroups.forEach(g => {
+      expanded[g.workdir] = false // false means NOT collapsed (expanded)
+    })
+    return expanded
+  }, [searchQuery, filteredGroups])
+
+  // Get effective collapsed state (search overrides manual collapse)
+  const isWorkdirCollapsed = (workdir) => {
+    if (searchQuery.trim()) {
+      return searchExpandedWorkdirs[workdir] ?? true
+    }
+    return collapsedWorkdirs[workdir] ?? false
+  }
 
   if (!connected) {
     return html`
@@ -778,6 +853,24 @@ function App() {
           <button class="sidebar-close" onClick=${() => setSidebarOpen(false)}>×</button>
         </div>
         <div class="sidebar-controls">
+          <div class="search-box">
+            <input
+              type="text"
+              ref=${searchInputRef}
+              value=${searchQuery}
+              onInput=${e => setSearchQuery(e.target.value)}
+              onKeyDown=${e => {
+                if (e.key === 'Escape') {
+                  setSearchQuery('')
+                  e.target.blur()
+                }
+              }}
+              placeholder="Search sessions... (⌘K)"
+            />
+            ${searchQuery && html`
+              <button class="search-clear" onClick=${() => setSearchQuery('')}>×</button>
+            `}
+          </div>
           <select value=${filter} onChange=${e => setFilter(e.target.value)}>
             <option value="all">All Sessions</option>
             <option value="attention">Needs Attention</option>
@@ -786,16 +879,16 @@ function App() {
         </div>
         <div class="session-list">
           ${filteredGroups.map(group => {
-            const isCollapsed = collapsedWorkdirs[group.workdir]
+            const collapsed = isWorkdirCollapsed(group.workdir)
             const visibleCount = getVisibleCount(group.workdir)
             const visibleSessions = group.sessions.slice(0, visibleCount)
             const hiddenCount = group.sessions.length - visibleCount
             const hasMore = hiddenCount > 0
 
             return html`
-              <div class="session-group ${isCollapsed ? 'collapsed' : ''}" key=${group.workdir}>
+              <div class="session-group ${collapsed ? 'collapsed' : ''}" key=${group.workdir}>
                 <div class="group-header" onClick=${() => toggleWorkdirCollapse(group.workdir)}>
-                  <span class="collapse-icon">${isCollapsed ? '▶' : '▼'}</span>
+                  <span class="collapse-icon">${collapsed ? '▶' : '▼'}</span>
                   <span class="workdir-name" title=${group.workdir}>${getWorkdirName(group.workdir)}</span>
                   <span class="session-count">(${group.sessions.length})</span>
                   <button
@@ -807,7 +900,7 @@ function App() {
                     title="View config"
                   >⚙</button>
                 </div>
-                ${!isCollapsed && html`
+                ${!collapsed && html`
                   <div class="group-sessions">
                     ${visibleSessions.map(session => html`
                       <div
