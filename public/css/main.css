@@ -1668,3 +1668,32 @@ textarea:focus:not(:focus-visible) {
   color: var(--text-primary);
   background: var(--bg-hover);
 }
+
+/* ============================================
+   Refresh Button & Pull-to-Refresh
+   ============================================ */
+
+.refresh-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.refresh-btn.refreshing svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.session-list.pulling::before {
+  content: 'Release to refresh';
+  display: block;
+  text-align: center;
+  padding: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+}

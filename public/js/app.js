@@ -225,6 +225,8 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0)
   const searchInputRef = useRef(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const sessionListRef = useRef(null)
   const [inputText, setInputText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showTranscript, setShowTranscript] = useState(false)
@@ -524,6 +526,69 @@ function App() {
     }
     return () => clientRef.current?.ws?.close()
   }, [])
+
+  // Refresh session list from server
+  const refreshSessions = async () => {
+    if (!clientRef.current || isRefreshing) return
+    setIsRefreshing(true)
+    try {
+      const [sessionsData, attentionData] = await Promise.all([
+        clientRef.current.listSessions(),
+        clientRef.current.getAttention()
+      ])
+      setSessions(sessionsData)
+      setAttention(attentionData)
+    } catch (e) {
+      console.error('Failed to refresh sessions:', e)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  // Pull-to-refresh for mobile
+  useEffect(() => {
+    const sessionList = sessionListRef.current
+    if (!sessionList) return
+
+    let startY = 0
+    let isPulling = false
+
+    const handleTouchStart = (e) => {
+      if (sessionList.scrollTop === 0) {
+        startY = e.touches[0].clientY
+        isPulling = true
+      }
+    }
+
+    const handleTouchMove = (e) => {
+      if (!isPulling) return
+      const currentY = e.touches[0].clientY
+      const pullDistance = currentY - startY
+
+      if (pullDistance > 80 && sessionList.scrollTop === 0) {
+        sessionList.classList.add('pulling')
+      }
+    }
+
+    const handleTouchEnd = () => {
+      if (sessionList.classList.contains('pulling')) {
+        sessionList.classList.remove('pulling')
+        refreshSessions()
+      }
+      isPulling = false
+      startY = 0
+    }
+
+    sessionList.addEventListener('touchstart', handleTouchStart, { passive: true })
+    sessionList.addEventListener('touchmove', handleTouchMove, { passive: true })
+    sessionList.addEventListener('touchend', handleTouchEnd, { passive: true })
+
+    return () => {
+      sessionList.removeEventListener('touchstart', handleTouchStart)
+      sessionList.removeEventListener('touchmove', handleTouchMove)
+      sessionList.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [connected, isRefreshing])
 
   const loadBrowsePath = async (path = '') => {
     try {
@@ -843,6 +908,18 @@ function App() {
           <div class="sidebar-title-row">
             <h2>Sessions</h2>
             <button
+              class="btn-icon refresh-btn ${isRefreshing ? 'refreshing' : ''}"
+              onClick=${refreshSessions}
+              disabled=${isRefreshing}
+              title="Refresh sessions"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6"/>
+                <path d="M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+            </button>
+            <button
               class="btn-icon collapse-all-btn"
               onClick=${collapseAllWorkdirs}
               title=${Object.keys(collapsedWorkdirs).length > 0 && Object.values(collapsedWorkdirs).every(Boolean) ? 'Expand all' : 'Collapse all'}
@@ -877,7 +954,7 @@ function App() {
           </select>
           <button class="btn-primary btn-sm" onClick=${() => openModal('newSession')}>+ New</button>
         </div>
-        <div class="session-list">
+        <div class="session-list" ref=${sessionListRef}>
           ${filteredGroups.map(group => {
             const collapsed = isWorkdirCollapsed(group.workdir)
             const visibleCount = getVisibleCount(group.workdir)
