@@ -164,7 +164,19 @@ function App() {
   })
   const [awaitingResponse, setAwaitingResponse] = useState(false)
   const [messages, setMessages] = useState({})
-  const [showNewSession, setShowNewSession] = useState(false)
+  // Modal management - single active modal pattern
+  const [activeModal, setActiveModal] = useState(null) // null | 'newSession' | 'fileBrowser' | 'workdirConfig'
+  const [modalData, setModalData] = useState(null) // data for the active modal (e.g., workdir path)
+
+  const openModal = useCallback((modalId, data = null) => {
+    setActiveModal(modalId)
+    setModalData(data)
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setActiveModal(null)
+    setModalData(null)
+  }, [])
   const [newSession, setNewSession] = useState({
     workdir: '',
     prompt: '',
@@ -179,7 +191,7 @@ function App() {
   const [editedName, setEditedName] = useState('')
   const [editingHeaderName, setEditingHeaderName] = useState(false)
   const [headerEditName, setHeaderEditName] = useState('')
-  const [showFileBrowser, setShowFileBrowser] = useState(false)
+  // File browser state (used by fileBrowser modal)
   const [browserPath, setBrowserPath] = useState('')
   const [browserEntries, setBrowserEntries] = useState([])
   const [browserHistory, setBrowserHistory] = useState([])
@@ -254,9 +266,8 @@ function App() {
     return parts[parts.length - 1] || workdir
   }
 
-  // Config modals
-  const [workdirConfigModal, setWorkdirConfigModal] = useState(null) // workdir path
-  const [sessionConfigModal, setSessionConfigModal] = useState(null) // session id
+  // Config data (fetched when workdirConfig modal opens)
+  const [sessionConfigModal, setSessionConfigModal] = useState(null) // session id (unused for now)
   const [workdirConfig, setWorkdirConfig] = useState(null) // fetched config data
 
   // Resolved interactions cache
@@ -338,14 +349,25 @@ function App() {
 
   // Fetch workdir config when modal opens
   useEffect(() => {
-    if (workdirConfigModal && clientRef.current) {
-      clientRef.current.getWorkdirConfig(workdirConfigModal)
+    if (activeModal === 'workdirConfig' && modalData && clientRef.current) {
+      clientRef.current.getWorkdirConfig(modalData)
         .then(data => setWorkdirConfig(data))
         .catch(() => setWorkdirConfig({ effective: {} }))
-    } else {
+    } else if (activeModal !== 'workdirConfig') {
       setWorkdirConfig(null)
     }
-  }, [workdirConfigModal])
+  }, [activeModal, modalData])
+
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && activeModal) {
+        closeModal()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [activeModal, closeModal])
 
   const connect = useCallback(() => {
     if (!token) return
@@ -464,14 +486,14 @@ function App() {
     }
   }
 
-  const openFileBrowser = () => {
-    setShowFileBrowser(true)
-    loadBrowsePath('')
+  const openFileBrowser = (initialPath = '') => {
+    openModal('fileBrowser')
+    loadBrowsePath(initialPath)
   }
 
   const selectDirectory = (path) => {
     setNewSession(s => ({ ...s, workdir: path }))
-    setShowFileBrowser(false)
+    closeModal()
     setBrowserPath('')
     setBrowserEntries([])
     setBrowserHistory([])
@@ -509,7 +531,7 @@ function App() {
         config
       )
 
-      setShowNewSession(false)
+      closeModal()
       setNewSession({ workdir: '', prompt: '', name: '', permissionMode: 'default' })
     } catch (err) {
       console.error('Failed to create session:', err)
@@ -688,7 +710,7 @@ function App() {
             <option value="all">All Sessions</option>
             <option value="attention">Needs Attention</option>
           </select>
-          <button class="btn-primary btn-sm" onClick=${() => setShowNewSession(true)}>+ New</button>
+          <button class="btn-primary btn-sm" onClick=${() => openModal('newSession')}>+ New</button>
         </div>
         <div class="session-list">
           ${filteredGroups.map(group => {
@@ -708,7 +730,7 @@ function App() {
                     class="btn-icon config-btn"
                     onClick=${(e) => {
                       e.stopPropagation()
-                      setWorkdirConfigModal(group.workdir)
+                      openModal('workdirConfig', group.workdir)
                     }}
                     title="View config"
                   >⚙</button>
@@ -951,141 +973,132 @@ function App() {
             <div class="no-session-content">
               <h2>Welcome to Clarvis</h2>
               <p>Select a session from the sidebar or create a new one to get started.</p>
-              <button class="btn-primary" onClick=${() => setShowNewSession(true)}>Create New Session</button>
+              <button class="btn-primary" onClick=${() => openModal('newSession')}>Create New Session</button>
             </div>
           </div>
         `}
       </div>
 
-      ${showNewSession && html`
-        <div class="modal-overlay" onClick=${() => setShowNewSession(false)}>
-          <div class="modal" onClick=${e => e.stopPropagation()}>
-            <div class="modal-header">
-              <h3>New Session</h3>
-              <button class="modal-close" onClick=${() => setShowNewSession(false)}>×</button>
-            </div>
-            <div class="modal-body">
-              <div class="form-group">
-                <label>Name (optional)</label>
-                <input
-                  type="text"
-                  value=${newSession.name}
-                  onInput=${e => setNewSession(s => ({ ...s, name: e.target.value }))}
-                  placeholder="My session"
-                />
+      ${activeModal && html`
+        <div class="modal-overlay" onClick=${closeModal}>
+          <div class="modal ${activeModal === 'workdirConfig' ? 'modal-wide' : ''} ${activeModal === 'fileBrowser' ? 'file-browser-modal' : ''}" onClick=${e => e.stopPropagation()}>
+            ${activeModal === 'newSession' && html`
+              <div class="modal-header">
+                <h3>New Session</h3>
+                <button class="modal-close" onClick=${closeModal}>×</button>
               </div>
-              <div class="form-group">
-                <label>Workdir *</label>
-                <div class="input-with-button">
+              <div class="modal-body">
+                <div class="form-group">
+                  <label>Name (optional)</label>
                   <input
                     type="text"
-                    value=${newSession.workdir}
-                    onInput=${e => setNewSession(s => ({ ...s, workdir: e.target.value }))}
-                    placeholder="/home/user/project"
+                    value=${newSession.name}
+                    onInput=${e => setNewSession(s => ({ ...s, name: e.target.value }))}
+                    placeholder="My session"
                   />
-                  <button onClick=${openFileBrowser}>📁</button>
+                </div>
+                <div class="form-group">
+                  <label>Workdir *</label>
+                  <div class="input-with-button">
+                    <input
+                      type="text"
+                      value=${newSession.workdir}
+                      onInput=${e => setNewSession(s => ({ ...s, workdir: e.target.value }))}
+                      placeholder="/home/user/project"
+                    />
+                    <button onClick=${() => openFileBrowser('')}>📁</button>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Initial prompt (optional)</label>
+                  <textarea
+                    value=${newSession.prompt}
+                    onInput=${e => setNewSession(s => ({ ...s, prompt: e.target.value }))}
+                    placeholder="What would you like to work on?"
+                    rows="3"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>Permissions</label>
+                  <select
+                    value=${newSession.permissionMode}
+                    onChange=${e => setNewSession(s => ({ ...s, permissionMode: e.target.value }))}
+                  >
+                    <option value="default">Ask before dangerous actions</option>
+                    <option value="acceptEdits">Auto-approve file edits</option>
+                    <option value="bypassPermissions">Skip all permission checks</option>
+                  </select>
                 </div>
               </div>
-              <div class="form-group">
-                <label>Initial prompt (optional)</label>
-                <textarea
-                  value=${newSession.prompt}
-                  onInput=${e => setNewSession(s => ({ ...s, prompt: e.target.value }))}
-                  placeholder="What would you like to work on?"
-                  rows="3"
-                />
+              <div class="modal-footer">
+                <button class="btn-secondary" onClick=${closeModal}>Cancel</button>
+                <button
+                  class="btn-primary"
+                  onClick=${handleCreateSession}
+                  disabled=${!newSession.workdir}
+                >Create</button>
               </div>
-              <div class="form-group">
-                <label>Permissions</label>
-                <select
-                  value=${newSession.permissionMode}
-                  onChange=${e => setNewSession(s => ({ ...s, permissionMode: e.target.value }))}
-                >
-                  <option value="default">Ask before dangerous actions</option>
-                  <option value="acceptEdits">Auto-approve file edits</option>
-                  <option value="bypassPermissions">Skip all permission checks</option>
-                </select>
+            `}
+
+            ${activeModal === 'fileBrowser' && html`
+              <div class="modal-header">
+                <h3>Select Directory</h3>
+                <button class="modal-close" onClick=${closeModal}>×</button>
               </div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn-secondary" onClick=${() => setShowNewSession(false)}>Cancel</button>
-              <button
-                class="btn-primary"
-                onClick=${handleCreateSession}
-                disabled=${!newSession.workdir}
-              >Create</button>
-            </div>
-          </div>
-        </div>
-      `}
+              <div class="browser-path">
+                ${browserPath ? html`
+                  <button class="btn-icon" onClick=${navigateUp}>←</button>
+                  <span>${browserPath}</span>
+                ` : html`
+                  <span class="browser-root-label">Select a project root:</span>
+                `}
+              </div>
+              <div class="browser-list">
+                ${browserEntries.length === 0 ? html`
+                  <div class="browser-empty">No directories available</div>
+                ` : browserEntries.map(entry => html`
+                  <div
+                    class="browser-item"
+                    key=${entry.path}
+                    onClick=${() => loadBrowsePath(entry.path)}
+                    onDblClick=${() => selectDirectory(entry.path)}
+                  >
+                    <span class="browser-icon">📁</span>
+                    <span class="browser-name">${entry.name}</span>
+                  </div>
+                `)}
+              </div>
+              <div class="modal-actions">
+                <button class="btn-secondary" onClick=${closeModal}>Cancel</button>
+                <button class="btn-primary" onClick=${() => selectDirectory(browserPath)} disabled=${!browserPath}>
+                  Select This Directory
+                </button>
+              </div>
+            `}
 
-      ${showFileBrowser && html`
-        <div class="modal-overlay" onClick=${() => setShowFileBrowser(false)}>
-          <div class="modal file-browser-modal" onClick=${e => e.stopPropagation()}>
-            <div class="modal-header">
-              <h3>Select Directory</h3>
-              <button class="modal-close" onClick=${() => setShowFileBrowser(false)}>×</button>
-            </div>
-            <div class="browser-path">
-              ${browserPath ? html`
-                <button class="btn-icon" onClick=${navigateUp}>←</button>
-                <span>${browserPath}</span>
-              ` : html`
-                <span class="browser-root-label">Select a project root:</span>
-              `}
-            </div>
-            <div class="browser-list">
-              ${browserEntries.length === 0 ? html`
-                <div class="browser-empty">No directories available</div>
-              ` : browserEntries.map(entry => html`
-                <div
-                  class="browser-item"
-                  key=${entry.path}
-                  onClick=${() => loadBrowsePath(entry.path)}
-                  onDblClick=${() => selectDirectory(entry.path)}
+            ${activeModal === 'workdirConfig' && html`
+              <div class="modal-header">
+                <h3>${modalData}</h3>
+                <button class="modal-close" onClick=${closeModal}>×</button>
+              </div>
+              <div class="modal-body">
+                <h4>Effective Settings</h4>
+                <pre class="config-display">${
+                  workdirConfig
+                    ? JSON.stringify(workdirConfig.effective, null, 2)
+                    : 'Loading...'
+                }</pre>
+                <button
+                  class="btn-secondary"
+                  onClick=${() => openFileBrowser(modalData + '/.claude')}
                 >
-                  <span class="browser-icon">📁</span>
-                  <span class="browser-name">${entry.name}</span>
-                </div>
-              `)}
-            </div>
-            <div class="modal-actions">
-              <button class="btn-secondary" onClick=${() => setShowFileBrowser(false)}>Cancel</button>
-              <button class="btn-primary" onClick=${() => selectDirectory(browserPath)} disabled=${!browserPath}>
-                Select This Directory
-              </button>
-            </div>
-          </div>
-        </div>
-      `}
-
-      ${workdirConfigModal && html`
-        <div class="modal-overlay" onClick=${() => setWorkdirConfigModal(null)}>
-          <div class="modal modal-wide" onClick=${e => e.stopPropagation()}>
-            <div class="modal-header">
-              <h3>${workdirConfigModal}</h3>
-              <button class="modal-close" onClick=${() => setWorkdirConfigModal(null)}>×</button>
-            </div>
-            <div class="modal-body">
-              <h4>Effective Settings</h4>
-              <pre class="config-display">${
-                workdirConfig
-                  ? JSON.stringify(workdirConfig.effective, null, 2)
-                  : 'Loading...'
-              }</pre>
-              <button
-                class="btn-secondary"
-                onClick=${() => {
-                  setShowFileBrowser(true)
-                  setBrowserPath(workdirConfigModal + '/.claude')
-                }}
-              >
-                Browse .claude directory
-              </button>
-            </div>
-            <div class="modal-footer">
-              <button class="btn-primary" onClick=${() => setWorkdirConfigModal(null)}>Close</button>
-            </div>
+                  Browse .claude directory
+                </button>
+              </div>
+              <div class="modal-footer">
+                <button class="btn-primary" onClick=${closeModal}>Close</button>
+              </div>
+            `}
           </div>
         </div>
       `}
