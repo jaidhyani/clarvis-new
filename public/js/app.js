@@ -18,6 +18,45 @@ marked.setOptions({
   }
 })
 
+// localStorage helpers
+const STORAGE_KEYS = {
+  COLLAPSED_WORKDIRS: 'clarvis_collapsedWorkdirs',
+  VISIBLE_COUNTS: 'clarvis_visibleCounts',
+  MAX_VISIBLE: 'clarvis_maxVisible'
+}
+
+function loadFromStorage(key, defaultValue) {
+  try {
+    const stored = localStorage.getItem(key)
+    return stored ? JSON.parse(stored) : defaultValue
+  } catch {
+    return defaultValue
+  }
+}
+
+function saveToStorage(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {}
+}
+
+// Relative time formatting
+function formatRelativeTime(isoString) {
+  const date = new Date(isoString)
+  const now = new Date()
+  const diffMs = now - date
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHour = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHour / 24)
+
+  if (diffSec < 60) return 'just now'
+  if (diffMin < 60) return `${diffMin}m ago`
+  if (diffHour < 24) return `${diffHour}h ago`
+  if (diffDay < 7) return `${diffDay}d ago`
+  return date.toLocaleDateString()
+}
+
 function renderMarkdown(text) {
   if (!text) return ''
   return marked.parse(text)
@@ -58,7 +97,7 @@ function groupByWorkdir(sessions, attention) {
 
   const groups = {}
   for (const session of sessions) {
-    const workdir = session.workdir || 'unknown'
+    const workdir = session.workdir || 'Unknown'
     const name = workdir.split('/').pop() || 'Unknown'
     if (!groups[workdir]) {
       groups[workdir] = { name, workdir, sessions: [] }
@@ -69,20 +108,21 @@ function groupByWorkdir(sessions, attention) {
     })
   }
 
-  for (const g of Object.values(groups)) {
-    // Sort by modified time (Claude sessions use 'modified' instead of 'lastActivity')
-    g.sessions.sort((a, b) => {
-      const aTime = new Date(b.modified || b.lastActivity || 0).getTime()
-      const bTime = new Date(a.modified || a.lastActivity || 0).getTime()
-      return aTime - bTime
-    })
+  // Sort sessions within each group by modified (most recent first)
+  for (const workdir in groups) {
+    groups[workdir].sessions.sort((a, b) =>
+      new Date(b.modified).getTime() - new Date(a.modified).getTime()
+    )
   }
 
-  return Object.values(groups).sort((a, b) => {
-    const aTime = Math.max(...a.sessions.map(s => new Date(s.modified || s.lastActivity || 0).getTime()))
-    const bTime = Math.max(...b.sessions.map(s => new Date(s.modified || s.lastActivity || 0).getTime()))
-    return bTime - aTime
+  // Sort workdirs by their most recent session
+  const sortedWorkdirs = Object.keys(groups).sort((a, b) => {
+    const aLatest = groups[a].sessions[0]?.modified || ''
+    const bLatest = groups[b].sessions[0]?.modified || ''
+    return new Date(bLatest).getTime() - new Date(aLatest).getTime()
   })
+
+  return sortedWorkdirs.map(workdir => groups[workdir])
 }
 
 const SLASH_COMMANDS = [
@@ -144,6 +184,25 @@ function App() {
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const slashMenuRef = useRef(null)
+
+  // Sidebar collapse state (persisted)
+  const [collapsedWorkdirs, setCollapsedWorkdirs] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.COLLAPSED_WORKDIRS, {})
+  )
+  const [visibleCounts, setVisibleCounts] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.VISIBLE_COUNTS, {})
+  )
+  const [maxVisibleSessions, setMaxVisibleSessions] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.MAX_VISIBLE, 5)
+  )
+
+  // Config modals
+  const [workdirConfigModal, setWorkdirConfigModal] = useState(null) // workdir path
+  const [sessionConfigModal, setSessionConfigModal] = useState(null) // session id
+  const [workdirConfig, setWorkdirConfig] = useState(null) // fetched config data
+
+  // Resolved interactions cache
+  const [interactions, setInteractions] = useState({}) // { sessionId: [...] }
 
   useEffect(() => {
     localStorage.setItem('clarvis_token', token)
@@ -209,6 +268,15 @@ function App() {
   useEffect(() => {
     setSelectedSlashIndex(0)
   }, [filteredCommands])
+
+  // Persist collapse state
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.COLLAPSED_WORKDIRS, collapsedWorkdirs)
+  }, [collapsedWorkdirs])
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.VISIBLE_COUNTS, visibleCounts)
+  }, [visibleCounts])
 
   const connect = useCallback(() => {
     if (!token) return
