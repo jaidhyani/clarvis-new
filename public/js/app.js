@@ -644,10 +644,20 @@ function App() {
         ? { permissionMode: newSession.permissionMode }
         : undefined
 
+      // Auto-name from first message if no name provided (max 128 chars)
+      let sessionName = newSession.name
+      if (!sessionName && newSession.prompt) {
+        sessionName = newSession.prompt.slice(0, 128).trim()
+        // Truncate at last word boundary if we hit the limit
+        if (newSession.prompt.length > 128 && sessionName.includes(' ')) {
+          sessionName = sessionName.slice(0, sessionName.lastIndexOf(' ')) + '...'
+        }
+      }
+
       await clientRef.current.createSession(
         newSession.workdir,
         newSession.prompt || undefined,
-        newSession.name || undefined,
+        sessionName || undefined,
         config
       )
 
