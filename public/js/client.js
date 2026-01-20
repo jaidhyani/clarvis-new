@@ -31,10 +31,10 @@ export class ClaudekeeperClient {
     return this.fetch(`/sessions/${id}`)
   }
 
-  async createSession(workdir, prompt, config) {
+  async createSession(workdir, prompt, name, config) {
     return this.fetch('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ workdir, prompt, config })
+      body: JSON.stringify({ workdir, prompt, name, config })
     })
   }
 
@@ -73,10 +73,29 @@ export class ClaudekeeperClient {
     return this.fetch(url)
   }
 
+  async browseWorkdir(path) {
+    return this.fetch(`/workdir/browse?path=${encodeURIComponent(path)}`)
+  }
+
+  async readWorkdirFile(path) {
+    return this.fetch(`/workdir/file?path=${encodeURIComponent(path)}`)
+  }
+
+  async getWorkdirConfig(workdir) {
+    return this.fetch(`/workdir/config?path=${encodeURIComponent(workdir)}`)
+  }
+
   async renameSession(id, name) {
     return this.fetch(`/sessions/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ name })
+    })
+  }
+
+  async updateSession(id, updates) {
+    return this.fetch(`/sessions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates)
     })
   }
 
@@ -139,6 +158,9 @@ export class ClaudekeeperClient {
         break
       case 'attention:resolved':
         h.onAttentionResolved?.(event.attentionId)
+        break
+      case 'interaction:resolved':
+        h.onInteractionResolved?.(event.sessionId, event.interaction)
         break
     }
   }
