@@ -196,6 +196,58 @@ function App() {
     loadFromStorage(STORAGE_KEYS.MAX_VISIBLE, 5)
   )
 
+  // Workdir collapse functions
+  const toggleWorkdirCollapse = (workdir) => {
+    setCollapsedWorkdirs(prev => ({
+      ...prev,
+      [workdir]: !prev[workdir]
+    }))
+  }
+
+  const collapseAllWorkdirs = () => {
+    const allWorkdirs = [...new Set(sessions.map(s => s.workdir))]
+    const allCollapsed = allWorkdirs.every(w => collapsedWorkdirs[w])
+
+    if (allCollapsed) {
+      setCollapsedWorkdirs({})
+    } else {
+      const collapsed = {}
+      allWorkdirs.forEach(w => { collapsed[w] = true })
+      setCollapsedWorkdirs(collapsed)
+    }
+  }
+
+  // Session visibility functions
+  const getVisibleCount = (workdir) => visibleCounts[workdir] || maxVisibleSessions
+
+  const showMoreSessions = (workdir, count) => {
+    setVisibleCounts(prev => ({
+      ...prev,
+      [workdir]: (prev[workdir] || maxVisibleSessions) + count
+    }))
+  }
+
+  const showAllSessions = (workdir, total) => {
+    setVisibleCounts(prev => ({
+      ...prev,
+      [workdir]: total
+    }))
+  }
+
+  const resetVisibleCount = (workdir) => {
+    setVisibleCounts(prev => {
+      const next = { ...prev }
+      delete next[workdir]
+      return next
+    })
+  }
+
+  // Get workdir display name (last path segment)
+  const getWorkdirName = (workdir) => {
+    const parts = workdir.split('/')
+    return parts[parts.length - 1] || workdir
+  }
+
   // Config modals
   const [workdirConfigModal, setWorkdirConfigModal] = useState(null) // workdir path
   const [sessionConfigModal, setSessionConfigModal] = useState(null) // session id
