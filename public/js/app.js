@@ -165,14 +165,20 @@ function App() {
   const [awaitingResponse, setAwaitingResponse] = useState(false)
   const [messages, setMessages] = useState({})
   const [showNewSession, setShowNewSession] = useState(false)
-  const [newWorkdir, setNewWorkdir] = useState('')
-  const [newPrompt, setNewPrompt] = useState('')
+  const [newSession, setNewSession] = useState({
+    workdir: '',
+    prompt: '',
+    name: '',
+    permissionMode: 'default'
+  })
   const [filter, setFilter] = useState('all')
   const [inputText, setInputText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showTranscript, setShowTranscript] = useState(false)
   const [editingSessionName, setEditingSessionName] = useState(null)
   const [editedName, setEditedName] = useState('')
+  const [editingHeaderName, setEditingHeaderName] = useState(false)
+  const [headerEditName, setHeaderEditName] = useState('')
   const [showFileBrowser, setShowFileBrowser] = useState(false)
   const [browserPath, setBrowserPath] = useState('')
   const [browserEntries, setBrowserEntries] = useState([])
@@ -330,6 +336,17 @@ function App() {
     saveToStorage(STORAGE_KEYS.VISIBLE_COUNTS, visibleCounts)
   }, [visibleCounts])
 
+  // Fetch workdir config when modal opens
+  useEffect(() => {
+    if (workdirConfigModal && clientRef.current) {
+      clientRef.current.getWorkdirConfig(workdirConfigModal)
+        .then(data => setWorkdirConfig(data))
+        .catch(() => setWorkdirConfig({ effective: {} }))
+    } else {
+      setWorkdirConfig(null)
+    }
+  }, [workdirConfigModal])
+
   const connect = useCallback(() => {
     if (!token) return
 
@@ -415,6 +432,12 @@ function App() {
       },
       onAttentionResolved: (attentionId) => {
         setAttention(prev => prev.filter(a => a.id !== attentionId))
+      },
+      onInteractionResolved: (sessionId, interaction) => {
+        setInteractions(prev => ({
+          ...prev,
+          [sessionId]: [...(prev[sessionId] || []), interaction]
+        }))
       }
     })
   }, [token])
@@ -447,7 +470,7 @@ function App() {
   }
 
   const selectDirectory = (path) => {
-    setNewWorkdir(path)
+    setNewSession(s => ({ ...s, workdir: path }))
     setShowFileBrowser(false)
     setBrowserPath('')
     setBrowserEntries([])
@@ -471,12 +494,26 @@ function App() {
     }
   }
 
-  const createSession = async () => {
-    if (!newWorkdir) return
-    await clientRef.current.createSession(newWorkdir, newPrompt || undefined)
-    setShowNewSession(false)
-    setNewWorkdir('')
-    setNewPrompt('')
+  const handleCreateSession = async () => {
+    if (!newSession.workdir) return
+
+    try {
+      const config = newSession.permissionMode !== 'default'
+        ? { permissionMode: newSession.permissionMode }
+        : undefined
+
+      await clientRef.current.createSession(
+        newSession.workdir,
+        newSession.prompt || undefined,
+        newSession.name || undefined,
+        config
+      )
+
+      setShowNewSession(false)
+      setNewSession({ workdir: '', prompt: '', name: '', permissionMode: 'default' })
+    } catch (err) {
+      console.error('Failed to create session:', err)
+    }
   }
 
   const handleInputChange = (e) => {
@@ -619,12 +656,32 @@ function App() {
 
   const toggleTranscript = () => setShowTranscript(s => !s)
 
+  // Helper to merge messages and interactions chronologically
+  const getMergedTranscript = (sessionMessages, sessionInteractions) => {
+    const items = [
+      ...sessionMessages.map(m => ({ ...m, itemType: 'message' })),
+      ...(sessionInteractions || []).map(i => ({ ...i, itemType: 'interaction', timestamp: i.resolvedAt }))
+    ]
+    return items.sort((a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    )
+  }
+
   return html`
     <div class="app">
       <div class="sidebar ${sidebarOpen ? 'open' : ''}">
         <div class="sidebar-header">
-          <h2>Sessions</h2>
-          <button class="close-sidebar" onClick=${() => setSidebarOpen(false)}>×</button>
+          <div class="sidebar-title-row">
+            <h2>Sessions</h2>
+            <button
+              class="btn-icon collapse-all-btn"
+              onClick=${collapseAllWorkdirs}
+              title=${Object.keys(collapsedWorkdirs).length > 0 && Object.values(collapsedWorkdirs).every(Boolean) ? 'Expand all' : 'Collapse all'}
+            >
+              ${Object.keys(collapsedWorkdirs).length > 0 && Object.values(collapsedWorkdirs).every(Boolean) ? '▶' : '▼'}
+            </button>
+          </div>
+          <button class="sidebar-close" onClick=${() => setSidebarOpen(false)}>×</button>
         </div>
         <div class="sidebar-controls">
           <select value=${filter} onChange=${e => setFilter(e.target.value)}>
@@ -634,41 +691,90 @@ function App() {
           <button class="btn-primary btn-sm" onClick=${() => setShowNewSession(true)}>+ New</button>
         </div>
         <div class="session-list">
-          ${filteredGroups.map(group => html`
-            <div class="session-group" key=${group.workdir}>
-              <div class="group-header">${group.name}</div>
-              ${group.sessions.map(session => html`
-                <div
-                  class="session-item ${session.id === activeSessionId ? 'active' : ''} ${session.attention.length > 0 ? 'needs-attention' : ''}"
-                  key=${session.id}
-                  onClick=${() => selectSession(session.id)}
-                >
-                  <span class="session-indicator ${session.process ? 'running' : 'idle'}"></span>
-                  ${editingSessionName === session.id ? html`
-                    <input
-                      class="session-name-input"
-                      value=${editedName}
-                      onInput=${e => setEditedName(e.target.value)}
-                      onBlur=${() => saveRename(session.id)}
-                      onKeyDown=${e => {
-                        if (e.key === 'Enter') saveRename(session.id)
-                        if (e.key === 'Escape') setEditingSessionName(null)
-                      }}
-                      onClick=${e => e.stopPropagation()}
-                      autoFocus
-                    />
-                  ` : html`
-                    <span class="session-name" onDblClick=${(e) => startRename(session, e)}>
-                      ${session.name || session.id.slice(0, 12)}
-                    </span>
-                  `}
-                  ${session.attention.length > 0 && html`
-                    <span class="attention-badge">${session.attention.length}</span>
-                  `}
+          ${filteredGroups.map(group => {
+            const isCollapsed = collapsedWorkdirs[group.workdir]
+            const visibleCount = getVisibleCount(group.workdir)
+            const visibleSessions = group.sessions.slice(0, visibleCount)
+            const hiddenCount = group.sessions.length - visibleCount
+            const hasMore = hiddenCount > 0
+
+            return html`
+              <div class="session-group ${isCollapsed ? 'collapsed' : ''}" key=${group.workdir}>
+                <div class="group-header" onClick=${() => toggleWorkdirCollapse(group.workdir)}>
+                  <span class="collapse-icon">${isCollapsed ? '▶' : '▼'}</span>
+                  <span class="workdir-name" title=${group.workdir}>${getWorkdirName(group.workdir)}</span>
+                  <span class="session-count">(${group.sessions.length})</span>
+                  <button
+                    class="btn-icon config-btn"
+                    onClick=${(e) => {
+                      e.stopPropagation()
+                      setWorkdirConfigModal(group.workdir)
+                    }}
+                    title="View config"
+                  >⚙</button>
                 </div>
-              `)}
-            </div>
-          `)}
+                ${!isCollapsed && html`
+                  <div class="group-sessions">
+                    ${visibleSessions.map(session => html`
+                      <div
+                        class="session-item ${session.id === activeSessionId ? 'active' : ''} ${session.attention.length > 0 ? 'needs-attention' : ''}"
+                        key=${session.id}
+                        onClick=${() => selectSession(session.id)}
+                      >
+                        <span class="session-indicator ${session.process ? 'running' : ''}"></span>
+                        <div class="session-info">
+                          ${editingSessionName === session.id ? html`
+                            <input
+                              type="text"
+                              class="session-name-input"
+                              value=${editedName}
+                              onInput=${e => setEditedName(e.target.value)}
+                              onKeyDown=${e => {
+                                if (e.key === 'Enter') saveRename(session.id)
+                                if (e.key === 'Escape') setEditingSessionName(null)
+                              }}
+                              onBlur=${() => saveRename(session.id)}
+                              onClick=${e => e.stopPropagation()}
+                              ref=${el => el?.focus()}
+                            />
+                          ` : html`
+                            <span class="session-name-row">
+                              <span class="session-name">${session.name || session.id.slice(0, 12)}</span>
+                              <button
+                                class="btn-icon edit-btn"
+                                onClick=${(e) => {
+                                  e.stopPropagation()
+                                  setEditingSessionName(session.id)
+                                  setEditedName(session.name || '')
+                                }}
+                                title="Rename"
+                              >✎</button>
+                            </span>
+                          `}
+                          <span class="session-time">${formatRelativeTime(session.modified)}</span>
+                        </div>
+                        ${session.attention.length > 0 && html`
+                          <span class="attention-badge">${session.attention.length}</span>
+                        `}
+                      </div>
+                    `)}
+                    ${hasMore && html`
+                      <div class="session-overflow">
+                        <button onClick=${() => showMoreSessions(group.workdir, 5)}>
+                          Show ${Math.min(5, hiddenCount)} more
+                        </button>
+                        ${hiddenCount > 5 && html`
+                          <button onClick=${() => showAllSessions(group.workdir, group.sessions.length)}>
+                            Show all (${group.sessions.length})
+                          </button>
+                        `}
+                      </div>
+                    `}
+                  </div>
+                `}
+              </div>
+            `
+          })}
         </div>
       </div>
 
@@ -680,8 +786,47 @@ function App() {
             <span></span><span></span><span></span>
           </button>
           ${activeSession ? html`
-            <div class="session-info">
-              <h3>${activeSession.name || activeSession.id.slice(0, 16)}</h3>
+            <div class="header-session-info">
+              ${editingHeaderName ? html`
+                <input
+                  type="text"
+                  class="header-name-input"
+                  value=${headerEditName}
+                  onInput=${e => setHeaderEditName(e.target.value)}
+                  onKeyDown=${async e => {
+                    if (e.key === 'Enter') {
+                      await clientRef.current.renameSession(activeSession.id, headerEditName.trim())
+                      setSessions(prev => prev.map(s =>
+                        s.id === activeSession.id ? { ...s, name: headerEditName.trim() } : s
+                      ))
+                      setEditingHeaderName(false)
+                    }
+                    if (e.key === 'Escape') setEditingHeaderName(false)
+                  }}
+                  onBlur=${async () => {
+                    if (headerEditName.trim()) {
+                      await clientRef.current.renameSession(activeSession.id, headerEditName.trim())
+                      setSessions(prev => prev.map(s =>
+                        s.id === activeSession.id ? { ...s, name: headerEditName.trim() } : s
+                      ))
+                    }
+                    setEditingHeaderName(false)
+                  }}
+                  ref=${el => el?.focus()}
+                />
+              ` : html`
+                <h3 class="header-session-name">
+                  ${activeSession.name || activeSession.id.slice(0, 16)}
+                  <button
+                    class="btn-icon edit-btn"
+                    onClick=${() => {
+                      setEditingHeaderName(true)
+                      setHeaderEditName(activeSession.name || '')
+                    }}
+                    title="Rename"
+                  >✎</button>
+                </h3>
+              `}
               <span class="session-workdir">${activeSession.workdir}</span>
             </div>
             <div class="header-actions">
@@ -725,9 +870,27 @@ function App() {
 
         ${activeSession ? html`
           <div class="messages">
-            ${sessionMessages.map((msg, i) => html`
-              <${Message} key=${i} message=${msg} showTranscript=${showTranscript} />
-            `)}
+            ${getMergedTranscript(
+              sessionMessages,
+              interactions[activeSessionId]
+            ).map((item, i) => {
+              if (item.itemType === 'interaction') {
+                return html`
+                  <div class="message interaction-resolved ${item.resolution === 'allow' ? 'allowed' : 'denied'}" key=${'int-' + i}>
+                    <span class="interaction-icon">${item.resolution === 'allow' ? '✓' : '✕'}</span>
+                    <div class="interaction-content">
+                      <span class="interaction-action">
+                        ${item.resolution === 'allow' ? 'Allowed' : 'Denied'} ${item.toolName || item.type}
+                        ${item.toolInput?.file_path ? ` to ${item.toolInput.file_path}` : ''}
+                      </span>
+                      ${item.message && html`<span class="interaction-message">"${item.message}"</span>`}
+                      <span class="interaction-time">${formatRelativeTime(item.resolvedAt)}</span>
+                    </div>
+                  </div>
+                `
+              }
+              return html`<${Message} key=${'msg-' + i} message=${item} showTranscript=${showTranscript} />`
+            })}
             ${sessionAttention.map(a => html`
               <${AttentionCard}
                 key=${a.id}
@@ -802,26 +965,55 @@ function App() {
               <button class="modal-close" onClick=${() => setShowNewSession(false)}>×</button>
             </div>
             <div class="modal-body">
-              <label>Working Directory</label>
-              <div class="browse-input">
+              <div class="form-group">
+                <label>Name (optional)</label>
                 <input
                   type="text"
-                  placeholder="/path/to/project"
-                  value=${newWorkdir}
-                  onInput=${e => setNewWorkdir(e.target.value)}
+                  value=${newSession.name}
+                  onInput=${e => setNewSession(s => ({ ...s, name: e.target.value }))}
+                  placeholder="My session"
                 />
-                <button class="btn-secondary" onClick=${openFileBrowser}>Browse</button>
               </div>
-              <label>Initial Prompt (optional)</label>
-              <textarea
-                placeholder="What would you like to work on?"
-                value=${newPrompt}
-                onInput=${e => setNewPrompt(e.target.value)}
-              />
+              <div class="form-group">
+                <label>Workdir *</label>
+                <div class="input-with-button">
+                  <input
+                    type="text"
+                    value=${newSession.workdir}
+                    onInput=${e => setNewSession(s => ({ ...s, workdir: e.target.value }))}
+                    placeholder="/home/user/project"
+                  />
+                  <button onClick=${openFileBrowser}>📁</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Initial prompt (optional)</label>
+                <textarea
+                  value=${newSession.prompt}
+                  onInput=${e => setNewSession(s => ({ ...s, prompt: e.target.value }))}
+                  placeholder="What would you like to work on?"
+                  rows="3"
+                />
+              </div>
+              <div class="form-group">
+                <label>Permissions</label>
+                <select
+                  value=${newSession.permissionMode}
+                  onChange=${e => setNewSession(s => ({ ...s, permissionMode: e.target.value }))}
+                >
+                  <option value="default">Ask before dangerous actions</option>
+                  <option value="acceptEdits">Auto-approve file edits</option>
+                  <option value="bypassPermissions">Skip all permission checks</option>
+                </select>
+              </div>
             </div>
-            <div class="modal-actions">
+            <div class="modal-footer">
               <button class="btn-secondary" onClick=${() => setShowNewSession(false)}>Cancel</button>
-              <button class="btn-primary" onClick=${createSession} disabled=${!newWorkdir}>Create</button>
+              <button
+                class="btn-primary"
+                onClick=${handleCreateSession}
+                disabled=${!newSession.workdir}
+              >Create</button>
             </div>
           </div>
         </div>
@@ -862,6 +1054,37 @@ function App() {
               <button class="btn-primary" onClick=${() => selectDirectory(browserPath)} disabled=${!browserPath}>
                 Select This Directory
               </button>
+            </div>
+          </div>
+        </div>
+      `}
+
+      ${workdirConfigModal && html`
+        <div class="modal-overlay" onClick=${() => setWorkdirConfigModal(null)}>
+          <div class="modal modal-wide" onClick=${e => e.stopPropagation()}>
+            <div class="modal-header">
+              <h3>${workdirConfigModal}</h3>
+              <button class="modal-close" onClick=${() => setWorkdirConfigModal(null)}>×</button>
+            </div>
+            <div class="modal-body">
+              <h4>Effective Settings</h4>
+              <pre class="config-display">${
+                workdirConfig
+                  ? JSON.stringify(workdirConfig.effective, null, 2)
+                  : 'Loading...'
+              }</pre>
+              <button
+                class="btn-secondary"
+                onClick=${() => {
+                  setShowFileBrowser(true)
+                  setBrowserPath(workdirConfigModal + '/.claude')
+                }}
+              >
+                Browse .claude directory
+              </button>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-primary" onClick=${() => setWorkdirConfigModal(null)}>Close</button>
             </div>
           </div>
         </div>
