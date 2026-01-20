@@ -468,7 +468,20 @@ function App() {
       onDisconnect: () => setConnected(false),
       onError: () => setLoginError('Connection failed - check token'),
       onSessionCreated: (session) => {
-        setSessions(prev => [...prev.filter(s => s.id !== session.id), session])
+        setSessions(prev => {
+          // Check if there's a pending session for this workdir that should be replaced
+          const pendingSession = prev.find(s => s._pendingFor === session.workdir)
+          if (pendingSession) {
+            // Update URL if we're viewing the pending session
+            if (window.location.hash === `#session=${pendingSession.id}`) {
+              window.location.hash = `session=${session.id}`
+            }
+            // Replace pending with real session
+            return prev.map(s => s.id === pendingSession.id ? session : s)
+          }
+          // No pending session, just add normally
+          return [...prev.filter(s => s.id !== session.id), session]
+        })
       },
       onSessionUpdated: (session) => {
         setSessions(prev => prev.map(s => s.id === session.id ? session : s))
@@ -654,15 +667,59 @@ function App() {
         }
       }
 
-      await clientRef.current.createSession(
+      // Create a temporary local session placeholder (shows immediately in UI)
+      const tempId = `pending_${Date.now()}`
+      const tempSession = {
+        id: tempId,
+        workdir: newSession.workdir,
+        name: sessionName || null,
+        status: 'idle',
+        config: config || {},
+        messages: [],
+        createdAt: new Date().toISOString(),
+        _pendingFor: newSession.workdir // Used to match with real session when it arrives
+      }
+
+      // Add to sessions state immediately (optimistic UI)
+      setSessions(prev => [tempSession, ...prev])
+
+      closeAllModals()
+      setNewSession({ workdir: '', prompt: '', name: '', permissionMode: 'default' })
+
+      // Navigate to the pending session
+      window.location.hash = `session=${tempId}`
+
+      // Fire API call in background (don't block UI)
+      clientRef.current.createSession(
         newSession.workdir,
         newSession.prompt || undefined,
         sessionName || undefined,
         config
-      )
-
-      closeAllModals()
-      setNewSession({ workdir: '', prompt: '', name: '', permissionMode: 'default' })
+      ).then(() => {
+        // Refresh sessions after a delay to get the real session
+        // (replaces the pending placeholder with actual session from backend)
+        setTimeout(async () => {
+          try {
+            const freshSessions = await clientRef.current.listSessions()
+            setSessions(freshSessions)
+            // Find the new session (most recently created one in this workdir)
+            const matchingSessions = freshSessions
+              .filter(s => s.workdir === newSession.workdir && !s.id.startsWith('pending_'))
+              .sort((a, b) => new Date(b.created || b.createdAt) - new Date(a.created || a.createdAt))
+            const newRealSession = matchingSessions[0]
+            if (newRealSession && window.location.hash === `#session=${tempId}`) {
+              window.location.hash = `session=${newRealSession.id}`
+            }
+          } catch (e) {
+            console.error('Failed to refresh sessions:', e)
+          }
+        }, 2000)
+      }).catch(err => {
+        console.error('Failed to create session on backend:', err)
+        // Remove the pending session on failure
+        setSessions(prev => prev.filter(s => s.id !== tempId))
+        window.location.hash = ''
+      })
     } catch (err) {
       console.error('Failed to create session:', err)
     }

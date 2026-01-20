@@ -19,7 +19,7 @@ A search box at the top of the sidebar allows filtering sessions using fuzzy mat
   - `Cmd/Ctrl+K` - Focus search box
   - `Escape` - Clear search and unfocus
 
-![Search filtering sessions](.playwright-mcp/03-search-filter.png)
+![Search filtering sessions](../.playwright-mcp/03-search-filter.png)
 *Searching for "meta" filters to show matching sessions*
 
 ---
@@ -33,7 +33,7 @@ Each workdir group now has a `+` button that creates a new session with the work
 - Opens the new session modal with workdir field pre-filled
 - User can still change the directory if desired
 
-![Workdir hover buttons](.playwright-mcp/02-workdir-hover-buttons.png)
+![Workdir hover buttons](../.playwright-mcp/02-workdir-hover-buttons.png)
 *The + and gear buttons appear when hovering over a workdir*
 
 ---
@@ -47,7 +47,7 @@ The sidebar header includes a refresh button to reload the session list.
 - Spinning animation while refreshing
 - Pull-to-refresh support on mobile (touch devices)
 
-![Sidebar with refresh button](.playwright-mcp/01-sidebar-overview.png)
+![Sidebar with refresh button](../.playwright-mcp/01-sidebar-overview.png)
 *The refresh button is in the sidebar header, next to "Sessions"*
 
 ---
@@ -61,14 +61,14 @@ Sessions now display a permission mode dropdown in the header, allowing you to c
 - **Plan Mode** - Planning only, no code execution
 - **Skip Permissions** - Skip all permission checks (dangerous)
 
-![Session with permission dropdown](.playwright-mcp/05-session-permission-dropdown.png)
+![Session with permission dropdown](../.playwright-mcp/05-session-permission-dropdown.png)
 *The permission dropdown is shown below the session name*
 
 ### Confirmation for Dangerous Mode
 
 When selecting "Skip Permissions", a confirmation dialog is shown to prevent accidental activation.
 
-![Dangerous permission confirmation](.playwright-mcp/07-dangerous-permission-confirmation.png)
+![Dangerous permission confirmation](../.playwright-mcp/07-dangerous-permission-confirmation.png)
 *Confirmation dialog when enabling Skip Permissions mode*
 
 ---
@@ -82,14 +82,14 @@ The new session modal has been enhanced with several improvements.
 - Directory picker opens as a child modal (doesn't close the new session modal)
 - Auto-naming from first message if no name is provided
 
-![New session modal](.playwright-mcp/04-new-session-modal.png)
+![New session modal](../.playwright-mcp/04-new-session-modal.png)
 *New session modal with permission mode selection*
 
 ### Modal Stacking
 
 The directory picker now opens as a "child" modal, stacking on top of the new session modal rather than replacing it. When the directory picker is closed, the new session modal is preserved.
 
-![File browser modal](.playwright-mcp/08-modal-stacking-file-browser.png)
+![File browser modal](../.playwright-mcp/08-modal-stacking-file-browser.png)
 *The directory picker stacks on top of the new session modal*
 
 ---
