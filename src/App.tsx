@@ -317,8 +317,7 @@ export function App() {
               messages={session.sessionMessages}
               interactions={session.interactions[session.activeSessionId ?? ''] ?? []}
               attention={session.sessionAttention}
-              showTranscript={showTranscript}
-              awaitingResponse={session.awaitingResponse}
+              sessionStatus={session.activeSession?.status ?? 'idle'}
               onResolveAttention={session.resolveAttention}
             />
             <MessageInput

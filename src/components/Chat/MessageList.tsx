@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'preact/hooks'
+import { useRef, useEffect, useLayoutEffect, useState } from 'preact/hooks'
 import type { Attention, Message as MessageType, ResolvedInteraction } from '@/types/session.ts'
 import { Message } from './Message.tsx'
 import { AttentionCard } from '../common/AttentionCard.tsx'
@@ -8,8 +8,7 @@ interface MessageListProps {
   messages: MessageType[]
   interactions: ResolvedInteraction[]
   attention: Attention[]
-  showTranscript: boolean
-  awaitingResponse: boolean
+  sessionStatus: 'idle' | 'running'
   onResolveAttention: (attentionId: string, behavior: 'allow' | 'deny', message?: string) => void
 }
 
@@ -35,21 +34,41 @@ export function MessageList({
   messages,
   interactions,
   attention,
-  showTranscript,
-  awaitingResponse,
+  sessionStatus,
   onResolveAttention
 }: MessageListProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
+  const prevMessageCount = useRef(0)
 
-  // Auto-scroll to bottom when new messages arrive
+  // Instant scroll to bottom on initial load (before paint)
+  useLayoutEffect(() => {
+    if (isInitialLoad && messages.length > 0 && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight
+      setIsInitialLoad(false)
+      prevMessageCount.current = messages.length
+    }
+  }, [messages, isInitialLoad])
+
+  // Smooth scroll for new messages during session
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (!isInitialLoad && messages.length > prevMessageCount.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+    prevMessageCount.current = messages.length
+  }, [messages, isInitialLoad])
+
+  // Reset initial load state when switching sessions (messages array changes entirely)
+  useEffect(() => {
+    setIsInitialLoad(true)
+  }, [messages.length === 0])
 
   const mergedItems = getMergedTranscript(messages, interactions)
+  const isWorking = sessionStatus === 'running'
 
   return (
-    <div class="messages">
+    <div class="messages" ref={containerRef}>
       {mergedItems.map((item, i) => {
         if (item.itemType === 'interaction') {
           return (
@@ -75,7 +94,6 @@ export function MessageList({
           <Message
             key={`msg-${i}`}
             message={item}
-            showTranscript={showTranscript}
           />
         )
       })}
@@ -88,13 +106,12 @@ export function MessageList({
         />
       ))}
 
-      {awaitingResponse && (
-        <div class="message assistant loading">
+      {isWorking && (
+        <div class="message assistant working">
           <div class="message-role">Claude</div>
-          <div class="loading-indicator">
-            <span></span>
-            <span></span>
-            <span></span>
+          <div class="working-indicator">
+            <span class="working-dot"></span>
+            <span class="working-text">Working...</span>
           </div>
         </div>
       )}
