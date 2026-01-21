@@ -63,9 +63,10 @@ Claude Code stores sessions in `~/.claude/projects/{workdir-path}/{uuid}.jsonl`:
 - `src/server.ts` - HTTP/WebSocket server
 
 **Clarvis:**
-- `public/js/app.js` - Main Preact application
-- `public/js/client.js` - Claudekeeper API client
-- `server.js` - Static server + API proxy
+- `src/App.tsx` - Main Preact application
+- `src/api/client.ts` - Claudekeeper API client
+- `src/hooks/useSession.ts` - Core session state management
+- `src/server/index.ts` - Static server + API proxy
 
 ## Features Implemented
 

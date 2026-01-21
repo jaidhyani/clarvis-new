@@ -41,6 +41,20 @@ export function MessageList({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const prevMessageCount = useRef(0)
+  const prevFirstMessageId = useRef<string | undefined>(undefined)
+
+  // Detect session switch by comparing first message ID
+  const firstMessageId = messages[0]?.id ?? messages[0]?.timestamp
+  const sessionChanged = firstMessageId !== prevFirstMessageId.current
+
+  // Reset scroll state on session switch
+  useEffect(() => {
+    if (sessionChanged) {
+      setIsInitialLoad(true)
+      prevMessageCount.current = 0
+      prevFirstMessageId.current = firstMessageId
+    }
+  }, [sessionChanged, firstMessageId])
 
   // Instant scroll to bottom on initial load (before paint)
   useLayoutEffect(() => {
@@ -58,11 +72,6 @@ export function MessageList({
     }
     prevMessageCount.current = messages.length
   }, [messages, isInitialLoad])
-
-  // Reset initial load state when switching sessions (messages array changes entirely)
-  useEffect(() => {
-    setIsInitialLoad(true)
-  }, [messages.length === 0])
 
   const mergedItems = getMergedTranscript(messages, interactions)
   const isWorking = sessionStatus === 'running'

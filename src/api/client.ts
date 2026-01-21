@@ -2,6 +2,7 @@ import type {
   Attention,
   AttentionResolution,
   BrowseResponse,
+  CreateSessionResponse,
   Message,
   Session,
   SessionConfig,
@@ -51,8 +52,8 @@ export class ClaudekeeperClient {
     prompt?: string,
     name?: string,
     config?: SessionConfig
-  ): Promise<Session> {
-    return this.fetch<Session>('/sessions', {
+  ): Promise<CreateSessionResponse> {
+    return this.fetch<CreateSessionResponse>('/sessions', {
       method: 'POST',
       body: JSON.stringify({ workdir, prompt, name, config })
     })
@@ -150,7 +151,7 @@ export class ClaudekeeperClient {
 
     switch (event.type) {
       case 'session:created':
-        h.onSessionCreated?.(event.session)
+        h.onSessionCreated?.(event.session, event.tempId)
         break
       case 'session:updated':
         h.onSessionUpdated?.(event.session)

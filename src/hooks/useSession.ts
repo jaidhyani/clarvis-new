@@ -5,7 +5,6 @@ import type { Attention, Message, ResolvedInteraction, Session } from '@/types/s
 import { STORAGE_KEYS } from '@/types/ui.ts'
 import { loadFromStorage, saveToStorage, removeFromStorage } from '@/utils/storage.ts'
 import { extractTextContent } from '@/utils/content.ts'
-import { SESSION_CREATION_REFRESH_DELAY_MS } from '@/utils/constants.ts'
 
 export interface UseSessionReturn {
   // Connection state
@@ -161,19 +160,23 @@ export function useSession(token: string): UseSessionReturn {
       },
       onDisconnect: () => setConnected(false),
       onError: () => setLoginError('Connection failed - check token'),
-      onSessionCreated: (session) => {
+      onSessionCreated: (session, tempId) => {
+        // Check if user is currently viewing this pending session
+        const viewingPending = window.location.hash === `#session=${tempId}`
+
+        if (viewingPending) {
+          // Update URL and state to point to real session
+          window.history.replaceState(null, '', `#session=${session.id}`)
+          setActiveSessionId(session.id)
+        }
+
         setSessions(prev => {
-          // Check if there's a pending session for this workdir that should be replaced
-          const pendingSession = prev.find(s => s._pendingFor === session.workdir)
-          if (pendingSession) {
-            // Update URL if we're viewing the pending session
-            if (window.location.hash === `#session=${pendingSession.id}`) {
-              window.location.hash = `session=${session.id}`
-            }
-            // Replace pending with real session
-            return prev.map(s => s.id === pendingSession.id ? session : s)
+          // Find and replace pending session by tempId
+          const hasPending = prev.some(s => s.id === tempId)
+          if (hasPending) {
+            return prev.map(s => s.id === tempId ? session : s)
           }
-          // No pending session, just add normally
+          // No pending session found, add normally
           return [...prev.filter(s => s.id !== session.id), session]
         })
       },
@@ -183,8 +186,9 @@ export function useSession(token: string): UseSessionReturn {
       onSessionEnded: (sessionId) => {
         setSessions(prev => prev.filter(s => s.id !== sessionId))
         setAttention(prev => prev.filter(a => a.sessionId !== sessionId))
-        // Clear awaiting response if this session ended
-        if (sessionId === loadFromStorage<string | null>(STORAGE_KEYS.ACTIVE_SESSION, null)) {
+        // Clear awaiting response if this session ended (check URL hash, not localStorage)
+        const currentHash = window.location.hash
+        if (currentHash === `#session=${sessionId}`) {
           setAwaitingResponse(false)
         }
       },
@@ -207,8 +211,9 @@ export function useSession(token: string): UseSessionReturn {
           }
           return { ...prev, [sessionId]: [...existing, message] }
         })
-        // Clear awaiting response when we get a message for the active session
-        if (sessionId === loadFromStorage<string | null>(STORAGE_KEYS.ACTIVE_SESSION, null)) {
+        // Clear awaiting response when we get a message for the active session (check URL hash)
+        const currentHash = window.location.hash
+        if (currentHash === `#session=${sessionId}`) {
           setAwaitingResponse(false)
         }
       },
@@ -280,53 +285,35 @@ export function useSession(token: string): UseSessionReturn {
       ? { permissionMode: permissionMode as Session['permissionMode'] }
       : undefined
 
-    // Create a temporary local session placeholder (shows immediately in UI)
-    const tempId = `pending_${Date.now()}`
-    const now = new Date().toISOString()
-    const tempSession: Session = {
-      id: tempId,
-      workdir,
-      ...(name ? { name } : {}),
-      status: 'idle',
-      config: config ?? {},
-      created: now,
-      modified: now,
-      permissionMode: (permissionMode ?? 'default') as Session['permissionMode'],
-      _pendingFor: workdir
-    }
-
-    // Add to sessions state immediately (optimistic UI)
-    setSessions(prev => [tempSession, ...prev])
-
-    // Navigate to the pending session
-    window.location.hash = `session=${tempId}`
-
-    // Fire API call in background
     try {
-      await clientRef.current.createSession(workdir, prompt, name, config)
-      // Refresh sessions after a delay to get the real session
-      setTimeout(async () => {
-        try {
-          if (!clientRef.current) return
-          const freshSessions = await clientRef.current.listSessions()
-          setSessions(freshSessions)
-          // Find the new session (most recently created one in this workdir)
-          const matchingSessions = freshSessions
-            .filter(s => s.workdir === workdir && !s.id.startsWith('pending_'))
-            .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
-          const newRealSession = matchingSessions[0]
-          if (newRealSession && window.location.hash === `#session=${tempId}`) {
-            window.location.hash = `session=${newRealSession.id}`
-          }
-        } catch (e) {
-          console.error('Failed to refresh sessions:', e)
-        }
-      }, SESSION_CREATION_REFRESH_DELAY_MS)
+      // Call API first to get the tempId from server
+      const response = await clientRef.current.createSession(workdir, prompt, name, config)
+      const tempId = response.tempId
+
+      // Create local pending session using server's tempId
+      const now = new Date().toISOString()
+      const tempSession: Session = {
+        id: tempId,
+        workdir,
+        ...(name ? { name } : {}),
+        status: 'running',
+        config: config ?? {},
+        created: now,
+        modified: now,
+        permissionMode: (permissionMode ?? 'default') as Session['permissionMode']
+      }
+
+      // Add to sessions state
+      setSessions(prev => [tempSession, ...prev])
+
+      // Navigate to the pending session
+      setActiveSessionId(tempId)
+
+      // WebSocket will deliver session:created event with real session ID
+      // onSessionCreated handler will replace pending session with real one
+
     } catch (err) {
-      console.error('Failed to create session on backend:', err)
-      // Remove the pending session on failure
-      setSessions(prev => prev.filter(s => s.id !== tempId))
-      window.location.hash = ''
+      console.error('Failed to create session:', err)
     }
   }, [])
 
@@ -340,6 +327,14 @@ export function useSession(token: string): UseSessionReturn {
         delete updated[sessionId]
         return updated
       })
+      // Clean up interactions for this session
+      setInteractions(prev => {
+        const updated = { ...prev }
+        delete updated[sessionId]
+        return updated
+      })
+      // Clean up any attention items for this session
+      setAttention(prev => prev.filter(a => a.sessionId !== sessionId))
       if (activeSessionId === sessionId) {
         setActiveSessionId(null)
       }

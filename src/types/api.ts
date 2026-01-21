@@ -25,12 +25,19 @@ export interface SlashCommand {
   description: string
 }
 
+/** Response from POST /sessions */
+export interface CreateSessionResponse {
+  tempId: string
+  name?: string
+  config?: Record<string, unknown>
+}
+
 /** WebSocket event handlers for subscribe() */
 export interface WebSocketHandlers {
   onConnect?: () => void
   onDisconnect?: () => void
   onError?: (error: Event) => void
-  onSessionCreated?: (session: Session) => void
+  onSessionCreated?: (session: Session, tempId: string) => void
   onSessionUpdated?: (session: Session) => void
   onSessionEnded?: (sessionId: string, reason?: string) => void
   onMessage?: (sessionId: string, message: Message) => void
@@ -54,10 +61,11 @@ interface BaseWebSocketEvent {
   type: WebSocketEventType
 }
 
-/** Session created event */
+/** Session created event - includes tempId for correlation with pending sessions */
 export interface SessionCreatedEvent extends BaseWebSocketEvent {
   type: 'session:created'
   session: Session
+  tempId: string
 }
 
 /** Session updated event */
